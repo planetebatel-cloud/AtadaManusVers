@@ -24,11 +24,12 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# CORS
+# CORS — credentials must be off when origins is "*" (browser blocks otherwise)
+_allow_credentials = "*" not in settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
