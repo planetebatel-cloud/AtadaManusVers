@@ -3,10 +3,12 @@ ATADA — Auth API Routes
 POST /api/auth/guest        → create anonymous session
 POST /api/auth/otp/send     → send OTP to phone (mock: console)
 POST /api/auth/otp/verify   → verify OTP → JWT tokens
+GET  /api/auth/otp/peek     → DEMO ONLY: return latest OTP for whitelisted demo phones
 POST /api/auth/refresh       → refresh access token
 GET  /api/auth/me            → current user info
 """
 
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -20,9 +22,13 @@ from app.services.auth import (
     decode_token, get_or_create_user, create_guest_session,
 )
 from app.api.deps import get_current_user
-from app.domain.models import User
+from app.domain.models import User, OTPCode
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# Whitelist of phone numbers for which /otp/peek will return the latest code.
+# This is how the public demo works without a real SMS provider.
+DEMO_PHONES = {"+972501234567", "+972509876543"}
 
 
 @router.post("/guest", response_model=GuestTokenResponse)
@@ -34,7 +40,39 @@ def create_guest(db: Session = Depends(get_db)):
 @router.post("/otp/send")
 def request_otp(body: OTPRequest, db: Session = Depends(get_db)):
     send_otp(body.phone, db)
-    return {"message": "OTP sent", "phone": body.phone}
+    return {
+        "message": "OTP sent",
+        "phone": body.phone,
+        "demo": body.phone in DEMO_PHONES,
+    }
+
+
+@router.get("/otp/peek")
+def peek_otp(phone: str, db: Session = Depends(get_db)):
+    """Return latest unused OTP for a whitelisted demo phone.
+
+    Powers the public demo: there is no real SMS provider, so the frontend
+    can auto-fetch the code for the two demo accounts. Returns 403 for any
+    non-whitelisted phone — real users still go through the normal flow.
+    """
+    if phone not in DEMO_PHONES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Peek is only available for demo phone numbers",
+        )
+    otp = (
+        db.query(OTPCode)
+        .filter(
+            OTPCode.phone == phone,
+            OTPCode.used == False,
+            OTPCode.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(OTPCode.created_at.desc())
+        .first()
+    )
+    if not otp:
+        raise HTTPException(status_code=404, detail="No active OTP for this phone")
+    return {"code": otp.code, "expires_at": otp.expires_at.isoformat()}
 
 
 @router.post("/otp/verify", response_model=TokenPair)

@@ -94,10 +94,19 @@ async function tryRefresh(): Promise<boolean> {
 // ─── Auth API ──────────────────────────────────────────────────────────────
 
 export async function sendOTP(phone: string) {
-  return apiFetch<{ message: string }>("/auth/otp/send", {
-    method: "POST",
-    body: JSON.stringify({ phone }),
-  });
+  return apiFetch<{ message: string; phone: string; demo: boolean }>(
+    "/auth/otp/send",
+    {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    },
+  );
+}
+
+export async function peekDemoOTP(phone: string) {
+  return apiFetch<{ code: string; expires_at: string }>(
+    `/auth/otp/peek?phone=${encodeURIComponent(phone)}`,
+  );
 }
 
 export async function verifyOTP(phone: string, code: string) {

@@ -5,20 +5,26 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Phone, Shield } from "lucide-react";
+import { ArrowRight, Phone, Shield, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { sendOTP, verifyOTP } from "@/lib/api";
+import { sendOTP, verifyOTP, peekDemoOTP } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 type Step = "phone" | "otp";
+
+const DEMO_PHONES = {
+  worker: "+972501234567",
+  employer: "+972509876543",
+};
 
 export default function AuthPage() {
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("+972");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<"worker" | "employer" | null>(null);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
 
@@ -27,13 +33,40 @@ export default function AuthPage() {
     if (phone.length < 10) return;
     setLoading(true);
     try {
-      await sendOTP(phone);
+      const sent = await sendOTP(phone);
       setStep("otp");
-      toast.success("Code sent! Check your phone.");
+      if (sent.demo) {
+        // Auto-fill the demo code so visitors can log in without a phone
+        try {
+          const peeked = await peekDemoOTP(phone);
+          setOtp(peeked.code);
+          toast.success(`Demo code auto-filled: ${peeked.code}`);
+        } catch {
+          toast.success("Code sent! Check your phone.");
+        }
+      } else {
+        toast.success("Code sent! Check your phone.");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to send code");
     }
     setLoading(false);
+  };
+
+  const handleDemoLogin = async (role: "worker" | "employer") => {
+    const demoPhone = DEMO_PHONES[role];
+    setDemoLoading(role);
+    try {
+      await sendOTP(demoPhone);
+      const peeked = await peekDemoOTP(demoPhone);
+      const data = await verifyOTP(demoPhone, peeked.code);
+      await login(data.access_token, data.refresh_token);
+      toast.success(`Logged in as demo ${role}`);
+      setLocation(role === "employer" ? "/employer" : "/");
+    } catch (err: any) {
+      toast.error(err.message || "Demo login failed");
+    }
+    setDemoLoading(null);
   };
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
@@ -80,6 +113,41 @@ export default function AuthPage() {
           </p>
         </div>
 
+        {/* One-click demo */}
+        <div className="atada-card p-4 mb-3">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={14} className="text-[#0A0A0A]" />
+            <span className="label-sm">Try the demo — no phone needed</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleDemoLogin("worker")}
+              disabled={demoLoading !== null}
+              className="btn-pill btn-pill-solid h-10 text-[12px] disabled:opacity-50"
+            >
+              {demoLoading === "worker" ? "Loading..." : "Worker demo"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDemoLogin("employer")}
+              disabled={demoLoading !== null}
+              className="btn-pill btn-pill-outline h-10 text-[12px] disabled:opacity-50"
+            >
+              {demoLoading === "employer" ? "Loading..." : "Employer demo"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 h-px bg-[#ECECEC]" />
+          <span className="text-[10px] text-[#B8B8B8] uppercase tracking-[0.15em]"
+                style={{ fontFamily: "'DM Mono', monospace" }}>
+            or use your phone
+          </span>
+          <div className="flex-1 h-px bg-[#ECECEC]" />
+        </div>
+
         {/* Card */}
         <div className="atada-card p-6">
           <AnimatePresence mode="wait">
@@ -107,7 +175,6 @@ export default function AuthPage() {
 
                 <p className="text-[11px] text-[#B8B8B8] mb-4" style={{ fontFamily: "'DM Mono', monospace" }}>
                   We'll send a 6-digit code to verify your number.
-                  {" "}In dev mode, code appears in backend console.
                 </p>
 
                 <button
@@ -169,15 +236,10 @@ export default function AuthPage() {
           </AnimatePresence>
         </div>
 
-        {/* Demo hint */}
-        <div className="mt-4 p-3 bg-[#FAFAFA] rounded-lg border border-[#ECECEC] text-center">
-          <p className="text-[11px] text-[#808080]" style={{ fontFamily: "'DM Mono', monospace" }}>
-            Demo: use +972501234567 (worker) or +972509876543 (employer)
-          </p>
-          <p className="text-[10px] text-[#B8B8B8] mt-1" style={{ fontFamily: "'DM Mono', monospace" }}>
-            OTP code prints in backend terminal
-          </p>
-        </div>
+        <p className="text-[10px] text-[#B8B8B8] mt-4 text-center"
+           style={{ fontFamily: "'DM Mono', monospace" }}>
+          Demo numbers: +972501234567 · +972509876543
+        </p>
       </motion.div>
     </div>
   );

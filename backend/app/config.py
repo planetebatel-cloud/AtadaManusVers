@@ -1,5 +1,8 @@
-from pydantic_settings import BaseSettings
+import json
 from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,8 +36,20 @@ class Settings(BaseSettings):
     # Maps / commute (optional — empty → haversine estimate, no external calls)
     GOOGLE_MAPS_API_KEY: str = ""
 
-    # CORS
+    # CORS — accepts JSON list, comma-separated list, or "*"
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _parse_cors(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            if v.startswith("["):
+                return json.loads(v)
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
     class Config:
         env_file = str(BASE_DIR / ".env")

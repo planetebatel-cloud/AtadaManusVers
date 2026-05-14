@@ -1,0 +1,37 @@
+# ATADA — Render Blueprint
+# Deploys the FastAPI backend on Render's free tier (Python runtime, no Docker).
+# Free tier has no persistent disk — the backend auto-seeds an empty SQLite DB
+# on every cold start via the auto_seed_if_empty() startup hook.
+#
+# To use:
+#   1. Push this repo to GitHub
+#   2. On render.com → New → Blueprint → connect repo → deploy
+#   3. After deploy, set MINIMAX_API_KEY and CORS_ORIGINS in the dashboard
+#      (CORS_ORIGINS = your Vercel URL once the frontend is deployed)
+
+services:
+  - type: web
+    name: atada-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements-prod.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: DEBUG
+        value: "False"
+      - key: JWT_SECRET
+        generateValue: true
+      # Secrets — set these in the Render dashboard (sync: false skips them here)
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional — only if you want real Stripe / Google Maps in the demo
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
