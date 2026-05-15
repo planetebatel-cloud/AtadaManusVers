@@ -3,7 +3,36 @@
 > Read this file **before touching code**. It's the contract for every coding
 > session. For full project state, also read `STATUS.md`.
 >
-> Last updated: 2026-05-14
+> Last updated: 2026-05-14 (deploy day)
+
+---
+
+## 🚀 PRODUCTION (live right now)
+
+| What | URL |
+|---|---|
+| **Frontend** (show this to people) | **https://atada.vercel.app** |
+| Backend API | https://atada-api.onrender.com |
+| Backend Swagger | https://atada-api.onrender.com/api/docs |
+| GitHub repo (public) | https://github.com/planetebatel-cloud/AtadaManusVers |
+
+**Deploy infra:**
+- Backend: Render free tier, service `srv-d82sktrrjlhs73dr34t0`, Python buildpack, no Docker.
+  Auto-deploys on push to `main`. Sleeps after 15 min idle → ~30s cold start.
+- Frontend: Vercel free tier (hobby plan), project `prj_Y3LZ9fmDNVtqY0ijxZMn5qvE1lDW`.
+  Auto-deploys on push to `main`. SSO protection disabled.
+- DB: SQLite in the Render container — **resets on every restart**. Auto-seed in
+  `backend/app/main.py:auto_seed_if_empty()` restores 47 jobs + 20 candidates +
+  the two demo users on cold boot.
+- Public demo flow: `/api/auth/otp/peek` endpoint returns the latest OTP for the
+  two whitelisted demo phones (`+972501234567` worker, `+972509876543` employer).
+  Any other phone gets 403.
+
+**Tokens / secrets live in:** `D:\AtadaManusVers\.deploy-tokens.env` (in `.gitignore`,
+contains `VERCEL_TOKEN`, `RENDER_API_KEY`, `MINIMAX_API_KEY`, `JWT_SECRET`).
+
+**Before any demo session:** hit `https://atada-api.onrender.com/api/health` once
+to warm the backend (~30s cold start otherwise).
 
 ---
 
@@ -91,29 +120,36 @@ D:/AtadaManusVers/
 │   │       ├── employer.py         /api/employer/*
 │   │       └── parser.py           /api/parser/* (screenshot intake)
 │   ├── seed_mock_db.py             Faker bulk seed (100+100)
-│   ├── seed_realistic.py           Hand-curated 47 jobs + 20 candidates ← preferred
+│   ├── seed_realistic.py           Hand-curated 47 jobs + 20 candidates ← preferred + invoked by auto-seed
 │   ├── fb_scraper.py               Playwright FB group scraper CLI
 │   ├── fb_cookies.json             FB session cookies (GITIGNORED)
 │   ├── atada.db                    SQLite database (GITIGNORED)
 │   ├── invoices/                   Generated PDF receipts (GITIGNORED)
 │   ├── .env                        Real secrets (GITIGNORED)
 │   ├── .env.example                Template, safe to commit
-│   ├── Dockerfile
-│   └── requirements.txt
+│   ├── Dockerfile                  Local Docker (not used in prod — Render uses Python buildpack)
+│   ├── requirements.txt            Full dev deps (incl. playwright)
+│   └── requirements-prod.txt       Prod deps (no playwright) ← used by Render
 │
 ├── server/index.ts                 Legacy Express static-file server (production build)
 ├── shared/const.ts                 Cookie names, time constants
-├── docker-compose.yml              Backend + frontend in containers
-├── Dockerfile.frontend
-├── vite.config.ts                  Proxies /api → :8002
+├── docker-compose.yml              Local-only — production doesn't use Docker
+├── Dockerfile.frontend             Local-only
+├── vite.config.ts                  Proxies /api → :8002, Manus debug plugins dev-only
+├── render.yaml                     Render blueprint (live service config)
+├── vercel.json                     Vercel project config (SPA rewrites + build)
 ├── package.json                    pnpm workspace, React 19
+│
+├── .deploy-tokens.env              LIVE API tokens for Render+Vercel+MiniMax+JWT (GITIGNORED)
 │
 ├── STATUS.md                       Current state, what works/broken (READ FIRST)
 ├── CLAUDE.md                       This file — operating manual for LLM coding
+├── DEPLOY.md                       How to deploy from scratch + current live snapshot
+├── CONFERENCE.md                   Day-of-conference checklist (warm-up, talking points)
 ├── README.md                       Public project intro
-├── AUDIT.md                        Investor-style honest audit
+├── AUDIT.md                        Investor-style honest audit (pre-deploy snapshot)
 ├── NextPlanStep.md                 Forward roadmap with effort estimates
-├── PRODUCTION_MIGRATION.md         Mock → real swap checklist
+├── PRODUCTION_MIGRATION.md         Mock → real swap checklist (partially done)
 └── ideas.md                        Original Quiet Modernism design brainstorm
 ```
 
@@ -135,10 +171,15 @@ Site at http://localhost:3000. API at http://127.0.0.1:8002. Vite proxies
 `/api/*` automatically.
 
 ### Demo logins
-- Worker: `+972501234567` (OTP prints in backend console)
+Two whitelisted phones — `/api/auth/otp/peek` returns their OTP for one-click
+login (any other phone gets 403). On the UI (`/auth`), the **Worker demo** and
+**Employer demo** buttons drive the full chain automatically.
+- Worker: `+972501234567` (locally OTP also prints in backend console)
 - Employer: `+972509876543`
 
 ### Re-seed DB
+Not needed on prod — backend auto-seeds when `jobs` table is empty (see
+`backend/app/main.py:auto_seed_if_empty`). For a forced local refresh:
 ```powershell
 python seed_realistic.py    # 47 hand-curated jobs (preferred)
 python seed_mock_db.py      # 100 Faker-generated jobs
@@ -150,7 +191,8 @@ python seed_mock_db.py      # 100 Faker-generated jobs
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| POST   | `/api/auth/otp/send` | – | Send OTP (prints code in console) |
+| POST   | `/api/auth/otp/send` | – | Send OTP (prints code in console; returns `demo:true` for whitelisted phones) |
+| GET    | `/api/auth/otp/peek?phone=...` | – | DEMO ONLY: latest OTP for the two demo phones; others get 403 |
 | POST   | `/api/auth/otp/verify` | – | Verify code → JWT pair |
 | GET    | `/api/jobs/feed` | JWT | Personalized match-sorted feed |
 | POST   | `/api/jobs/swipe` | JWT | Record Apply/Skip |
@@ -252,23 +294,35 @@ Fallback: if backend is down, all frontend pages fall back to mock data from
   employer-only.
 - **Don't merge the old Express server (`server/index.ts`) into FastAPI.**
   It only serves the production static build. Kept for legacy.
+- **Don't try to use Docker for deploy.** Render uses Python buildpack
+  directly from `requirements-prod.txt`. The `Dockerfile` and `docker-compose.yml`
+  are local-only artifacts. User's Docker Desktop on Windows is unreliable.
+- **Don't try to JSON-parse `CORS_ORIGINS` env var in pydantic-settings.**
+  The `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` in
+  `config.py` handles JSON, comma-separated, and `"*"`. Don't simplify back to
+  `list[str]` — Render boot will crash on plain strings.
+- **MiniMax chat is mock right now** — see Known Issue #1 in STATUS.md.
+  Don't "fix" it by guessing the endpoint URL; the user has a Token Plan that
+  needs an Anthropic-compatible endpoint and the user knows the exact URL.
 
 ---
 
 ## When You Pick This Up Cold
 
-1. Read `STATUS.md` for the current state (what works, what's mocked).
-2. Read this file (`CLAUDE.md`) for operating rules.
-3. Skim `NextPlanStep.md` for direction.
-4. Verify locally:
+1. Open **https://atada.vercel.app** — see it live. Click the chevron banner
+   → /auth → Worker demo. This is the proof the deploy is alive.
+2. Read `STATUS.md` for the current state (what works, what's mocked, prod URLs).
+3. Read this file (`CLAUDE.md`) for operating rules.
+4. Skim `CONFERENCE.md` if a demo is imminent — it has warm-up and fallback steps.
+5. Skim `NextPlanStep.md` for forward direction.
+6. To change code, run locally:
    ```powershell
    cd backend; python -m uvicorn app.main:app --port 8002
    # in another terminal
    pnpm dev
    ```
-5. Visit http://localhost:3000 and check job cards have Unsplash images.
-   If they're grey placeholders, the backend isn't returning `image_url` —
-   restart it.
+7. Push to `main` → both Render and Vercel auto-redeploy (~5 min for backend,
+   ~2 min for frontend).
 
 ---
 

@@ -5,6 +5,54 @@
 
 ---
 
+## ✅ Текущий живой деплой (2026-05-14)
+
+Всё уже задеплоено и работает. Эта секция — снимок состояния, чтобы не
+догадываться.
+
+| Что | Где | ID / URL |
+|---|---|---|
+| Frontend | Vercel (hobby) | `https://atada.vercel.app` · project `prj_Y3LZ9fmDNVtqY0ijxZMn5qvE1lDW` · team `team_IAsbw3Ot1l0EaUQWk53TGCEb` |
+| Backend | Render (free) | `https://atada-api.onrender.com` · service `srv-d82sktrrjlhs73dr34t0` · owner `tea-d82shod7vvec738ch2u0` |
+| GitHub repo (public) | github.com | `planetebatel-cloud/AtadaManusVers` |
+| API токены (локально, в `.gitignore`) | `D:\AtadaManusVers\.deploy-tokens.env` | `VERCEL_TOKEN`, `RENDER_API_KEY`, `MINIMAX_API_KEY`, `JWT_SECRET` |
+
+**Что отличается от инструкций ниже:**
+- Деплой был выполнен через API Render и Vercel, не через их UI.
+- Репо был сделан публичным (Render free без OAuth не может клонировать private).
+- `CORS_ORIGINS` уже сужен до `https://atada.vercel.app`.
+- SSO protection на Vercel выключена (иначе visitors упрутся в Vercel login).
+- Один баг был починен по ходу: `pydantic-settings` пытался JSON-парсить
+  `CORS_ORIGINS=*` — исправлено через `Annotated[list[str], NoDecode]` в
+  `backend/app/config.py`.
+
+**Как воссоздать с нуля** (если случится катастрофа) — следуй разделам 1-5
+ниже. **Если просто хочешь починить что-то в текущем деплое** — push в `main`,
+оба сервиса перезапустят билд автоматически.
+
+### Быстрая диагностика prod
+
+```bash
+# 1. Бэк жив?
+curl https://atada-api.onrender.com/api/health
+
+# 2. Фид отдаёт seeded jobs?
+curl "https://atada-api.onrender.com/api/jobs?limit=3"
+
+# 3. Демо-OTP-peek работает?
+curl -X POST https://atada-api.onrender.com/api/auth/otp/send \
+  -H "Content-Type: application/json" -d '{"phone":"+972501234567"}'
+curl "https://atada-api.onrender.com/api/auth/otp/peek?phone=%2B972501234567"
+
+# 4. CORS preflight пускает фронт?
+curl -i -X OPTIONS https://atada-api.onrender.com/api/auth/otp/send \
+  -H "Origin: https://atada.vercel.app" \
+  -H "Access-Control-Request-Method: POST"
+# Должно вернуть access-control-allow-origin: https://atada.vercel.app
+```
+
+---
+
 ## 0. Перед началом
 
 - Аккаунт на [github.com](https://github.com) (бесплатно)

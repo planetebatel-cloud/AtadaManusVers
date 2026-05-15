@@ -3,9 +3,21 @@
 > **AI-powered job matching for Israel.**
 > Workers swipe on jobs Tinder-style. Employers find pre-matched candidates.
 
-[![Status: MVP](https://img.shields.io/badge/status-MVP-orange)](./STATUS.md)
+[![Live demo](https://img.shields.io/badge/demo-atada.vercel.app-black)](https://atada.vercel.app)
+[![Status: MVP deployed](https://img.shields.io/badge/status-MVP%20deployed-green)](./STATUS.md)
 [![Stack](https://img.shields.io/badge/stack-React%20%2B%20FastAPI-blue)]()
 [![License: proprietary](https://img.shields.io/badge/license-proprietary-red)]()
+
+---
+
+## 🚀 Live demo
+
+**https://atada.vercel.app** — open it, click the chevron "Try demo" in the
+black strip at the top, then click **Worker demo** or **Employer demo**.
+No phone, no signup, no SMS — one click and you're inside the full flow.
+
+> First request might take ~30 seconds — the backend is on Render's free tier
+> and sleeps after 15 minutes of inactivity. Hit `/api/health` to wake it.
 
 ---
 
@@ -72,9 +84,18 @@ Open http://localhost:3000.
 
 ## Project Status
 
-This is a **functional MVP** with all main user journeys wired end-to-end.
-What's not done: production hosting, real SMS provider, Hebrew translation,
-test suite.
+This is a **functional MVP, deployed live on free tiers**:
+- Frontend on Vercel (`atada.vercel.app`)
+- Backend on Render (`atada-api.onrender.com`)
+- SQLite + auto-seed at boot (Render's free tier has no persistent disk)
+
+Working end-to-end on production: one-click demo login (both worker and
+employer flows), personalized job feed with match-scoring, swipe to apply,
+employer dashboard with applicant tracking, Stripe checkout in test mode.
+
+**Known limitations:** AI chat falls back to mock responses (MiniMax endpoint
+needs Anthropic-compatible rewrite for Token Plan), no real SMS for non-demo
+phones, Hebrew/RTL not translated.
 
 For a precise list of what works, what's mocked, and what's missing, read
 **[STATUS.md](./STATUS.md)** — it's the single source of truth.
@@ -118,11 +139,13 @@ Full layout in [STATUS.md](./STATUS.md#architecture-one-pager).
 
 | File | What it covers |
 |------|---------------|
-| [STATUS.md](./STATUS.md) | **Start here.** Current state, what works, what's mocked. |
+| [STATUS.md](./STATUS.md) | **Start here.** Current state, prod URLs, what works, what's mocked. |
 | [CLAUDE.md](./CLAUDE.md) | Operating manual for LLM coding assistants. |
-| [AUDIT.md](./AUDIT.md) | Honest investor-style audit. |
+| [DEPLOY.md](./DEPLOY.md) | How to deploy from scratch + current live snapshot. |
+| [CONFERENCE.md](./CONFERENCE.md) | Day-of-conference checklist (warm-up, talking points, fallback). |
+| [AUDIT.md](./AUDIT.md) | Pre-deploy investor-style audit. |
 | [NextPlanStep.md](./NextPlanStep.md) | Forward roadmap with effort estimates. |
-| [PRODUCTION_MIGRATION.md](./PRODUCTION_MIGRATION.md) | Mock-by-mock list to swap before deploy. |
+| [PRODUCTION_MIGRATION.md](./PRODUCTION_MIGRATION.md) | Mock-by-mock list (partially done). |
 | [ideas.md](./ideas.md) | Original design philosophy brainstorm. |
 
 ---
