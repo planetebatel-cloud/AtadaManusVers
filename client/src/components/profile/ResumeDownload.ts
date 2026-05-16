@@ -1,4 +1,7 @@
-import html2canvas from "html2canvas";
+// html2canvas-pro is a maintained fork that supports modern CSS color
+// functions (oklch, color-mix, lab) — required because Tailwind 4 ships
+// its default palette as oklch() and the original html2canvas crashes.
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
 export async function generateResumePDF(

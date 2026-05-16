@@ -6,26 +6,44 @@ import { ResumePreview } from "@/components/profile/ResumePreview";
 import { generateResumePDF } from "@/components/profile/ResumeDownload";
 import { HomeAddressCard } from "@/components/profile/HomeAddressCard";
 import { useResumeState } from "@/hooks/useResumeState";
+import { useIsMobile } from "@/hooks/useMobile";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
   const resume = useResumeState();
   const previewRef = useRef<HTMLDivElement>(null);
+  const mobilePreviewRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const isMobile = useIsMobile();
 
   const handleDownload = useCallback(async () => {
-    if (!previewRef.current || downloading) return;
+    if (downloading) return;
+    // On mobile, the preview only exists while the Preview tab is open. If
+    // we're on Edit, flip to Preview first so the DOM is mounted before
+    // html2canvas reads it.
+    if (isMobile && activeTab !== "preview") {
+      setActiveTab("preview");
+      // give React a frame to mount the preview before snapshotting
+      await new Promise(r => setTimeout(r, 50));
+    }
+    const target = isMobile ? mobilePreviewRef.current : previewRef.current;
+    if (!target) {
+      toast.error("Preview not ready — try again.");
+      return;
+    }
     setDownloading(true);
     try {
-      await generateResumePDF(previewRef.current);
+      await generateResumePDF(target);
       toast.success("Resume downloaded!");
-    } catch {
-      toast.error("Failed to generate PDF. Try again.");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      const msg = String((err as Error)?.message || err);
+      toast.error(`PDF failed: ${msg.slice(0, 120)}`);
     } finally {
       setDownloading(false);
     }
-  }, [downloading]);
+  }, [downloading, isMobile, activeTab]);
 
   return (
     <motion.div
@@ -36,50 +54,14 @@ export default function ProfilePage() {
     >
       <ProfileHeader onDownload={handleDownload} downloading={downloading} />
 
-      {/* Desktop layout */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-        <div className="w-[42%] overflow-y-auto p-6 flex flex-col gap-4">
-          <HomeAddressCard />
-          <ResumeForm
-            data={resume.data}
-            updateField={resume.updateField}
-            addSkill={resume.addSkill}
-            removeSkill={resume.removeSkill}
-            addExperience={resume.addExperience}
-            updateExperience={resume.updateExperience}
-            removeExperience={resume.removeExperience}
-            addEducation={resume.addEducation}
-            updateEducation={resume.updateEducation}
-            removeEducation={resume.removeEducation}
-            updateContact={resume.updateContact}
-          />
-        </div>
-        <div className="w-[58%] overflow-y-auto p-6 flex justify-center">
-          <div className="sticky top-0">
-            <PreviewScaler>
-              <ResumePreview ref={previewRef} data={resume.data} />
-            </PreviewScaler>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile layout */}
-      <div className="md:hidden flex flex-col flex-1 overflow-hidden">
-        {/* Tab switcher */}
-        <div className="flex bg-white border-b border-[#ECECEC]">
-          <TabButton active={activeTab === "edit"} onClick={() => setActiveTab("edit")}>
-            Edit
-          </TabButton>
-          <TabButton active={activeTab === "preview"} onClick={() => setActiveTab("preview")}>
-            Preview
-          </TabButton>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === "edit" ? (
-            <div className="flex flex-col gap-4">
-              <HomeAddressCard />
-              <ResumeForm
+      {/* Render only one layout based on viewport — previously both layouts
+          rendered simultaneously (hidden via CSS) which doubled React work on
+          every keystroke. Big perf win on mobile typing. */}
+      {!isMobile ? (
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-[42%] overflow-y-auto p-6 flex flex-col gap-4">
+            <HomeAddressCard />
+            <ResumeForm
               data={resume.data}
               updateField={resume.updateField}
               addSkill={resume.addSkill}
@@ -92,16 +74,54 @@ export default function ProfilePage() {
               removeEducation={resume.removeEducation}
               updateContact={resume.updateContact}
             />
-            </div>
-          ) : (
-            <div className="flex justify-center">
+          </div>
+          <div className="w-[58%] overflow-y-auto p-6 flex justify-center">
+            <div className="sticky top-0">
               <PreviewScaler>
                 <ResumePreview ref={previewRef} data={resume.data} />
               </PreviewScaler>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex bg-white border-b border-[#ECECEC]">
+            <TabButton active={activeTab === "edit"} onClick={() => setActiveTab("edit")}>
+              Edit
+            </TabButton>
+            <TabButton active={activeTab === "preview"} onClick={() => setActiveTab("preview")}>
+              Preview
+            </TabButton>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {activeTab === "edit" ? (
+              <div className="flex flex-col gap-4">
+                <HomeAddressCard />
+                <ResumeForm
+                  data={resume.data}
+                  updateField={resume.updateField}
+                  addSkill={resume.addSkill}
+                  removeSkill={resume.removeSkill}
+                  addExperience={resume.addExperience}
+                  updateExperience={resume.updateExperience}
+                  removeExperience={resume.removeExperience}
+                  addEducation={resume.addEducation}
+                  updateEducation={resume.updateEducation}
+                  removeEducation={resume.removeEducation}
+                  updateContact={resume.updateContact}
+                />
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <PreviewScaler>
+                  <ResumePreview ref={mobilePreviewRef} data={resume.data} />
+                </PreviewScaler>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

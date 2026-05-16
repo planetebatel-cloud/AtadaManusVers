@@ -17,6 +17,7 @@ import { mockUser, mockJobs, apiJobToJob } from "@/lib/data";
 import type { ChatMessage, Job } from "@/lib/data";
 import { getJobs, getJobFeed, swipeJob, streamChat, isAuthenticated, saveJob, unsaveJob, getSavedJobs } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
@@ -88,6 +89,7 @@ export function DiscoveryPage() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [detailJob, setDetailJob] = useState<Job | null>(null);
   const [, setLocation] = useLocation();
+  const isMobile = useIsMobile();
   // Derived: indicator visible only while the latest message is from the user
   // (i.e. AI hasn't started replying yet). No risk of stuck indicators.
   const isTyping = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "user";
@@ -265,20 +267,19 @@ export function DiscoveryPage() {
   return (
     <div className="w-full h-full bg-[#F7F7F7] flex flex-col">
 
-      {/* ── Mobile header ────────────────────────────────────────────── */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-[#ECECEC]">
-        <span
-          className="label-sm"
-          style={{ fontFamily: "'DM Mono', monospace" }}
-        >
-          ATADA
-        </span>
-        <div className="flex items-center gap-2">
+      {/* Mobile mini-header: only the "open chat" + "Feed →" actions.
+          Global nav lives in <Header /> above. Renders ONLY on mobile so
+          desktop doesn't pay for the JSX. */}
+      {isMobile && (
+        <div className="flex items-center justify-end px-4 py-2 bg-white border-b border-[#ECECEC] gap-2">
           <button
             onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
-            className="p-1.5 hover:bg-[#FAFAFA] rounded-lg transition-colors"
+            className="text-[11px] font-medium text-[#505050] border border-[#D8D8D8] px-2.5 py-1.5 rounded-lg hover:border-[#0A0A0A] transition-colors flex items-center gap-1.5"
+            style={{ fontFamily: "'DM Mono', monospace" }}
+            aria-label="Open chat"
           >
-            {mobileDrawerOpen ? <X size={18} /> : <Menu size={18} />}
+            {mobileDrawerOpen ? <X size={12} /> : <Menu size={12} />}
+            Chat
           </button>
           <button
             onClick={goNext}
@@ -288,10 +289,12 @@ export function DiscoveryPage() {
             Feed →
           </button>
         </div>
-      </div>
+      )}
 
-      {/* ── Desktop: three-column layout ──────────────────────────────── */}
-      <div className="hidden md:flex flex-1 overflow-hidden gap-4 p-4">
+      {/* Desktop: three-column layout. Conditionally mounted to avoid
+          rendering both layouts every keystroke. */}
+      {!isMobile && (
+      <div className="flex flex-1 overflow-hidden gap-4 p-4">
 
         {/* LEFT: Avatar panel */}
         <motion.div
@@ -428,9 +431,11 @@ export function DiscoveryPage() {
           </div>
         </motion.div>
       </div>
+      )}
 
-      {/* ── Mobile: stacked layout ───────────────────────────────────── */}
-      <div className="md:hidden flex-1 flex flex-col overflow-hidden relative">
+      {/* Mobile: stacked layout — only mounted on mobile */}
+      {isMobile && (
+      <div className="flex-1 flex flex-col overflow-hidden relative">
 
         {/* Main content */}
         <div className="flex-1 overflow-y-auto p-4 bg-[#F7F7F7]">
@@ -505,6 +510,7 @@ export function DiscoveryPage() {
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* Job detail modal — opened from card body click on either layout */}
       <JobDetailModal
