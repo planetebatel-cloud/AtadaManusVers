@@ -171,7 +171,22 @@ export async function getCandidates(params?: { skills?: string; location?: strin
 
 // ─── Chat API (SSE) ────────────────────────────────────────────────────────
 
-export async function* streamChat(message: string): AsyncGenerator<ChatChunk> {
+export interface ChatHistoryItem {
+  role: "user" | "assistant" | "ai";
+  content: string;
+}
+
+export interface ChatStreamOptions {
+  history?: ChatHistoryItem[];
+  imageB64?: string;       // base64 (no "data:" prefix)
+  imageMime?: string;      // "image/png" | "image/jpeg" | "image/webp"
+  tools?: Record<string, unknown>[];
+}
+
+export async function* streamChat(
+  message: string,
+  opts: ChatStreamOptions = {},
+): AsyncGenerator<ChatChunk> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -179,10 +194,18 @@ export async function* streamChat(message: string): AsyncGenerator<ChatChunk> {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
+  const body: Record<string, unknown> = { message };
+  if (opts.history?.length) body.history = opts.history;
+  if (opts.imageB64) {
+    body.image_b64 = opts.imageB64;
+    body.image_mime = opts.imageMime || "image/png";
+  }
+  if (opts.tools?.length) body.tools = opts.tools;
+
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok || !res.body) {
@@ -210,6 +233,56 @@ export async function* streamChat(message: string): AsyncGenerator<ChatChunk> {
       }
     }
   }
+}
+
+// ─── AI sundries (vision, TTS, music) ──────────────────────────────────────
+
+export async function describeImage(imageB64: string, imageMime: string, prompt?: string) {
+  return apiFetch<{ content: string }>("/ai/vision", {
+    method: "POST",
+    body: JSON.stringify({ image_b64: imageB64, image_mime: imageMime, prompt }),
+  });
+}
+
+/** Returns an object URL (audio/mpeg) that can be fed straight into `new Audio()`. */
+export async function textToSpeech(
+  text: string,
+  opts: { voiceId?: string; model?: string; format?: "mp3" | "wav" } = {},
+): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  const res = await fetch(`${API_BASE}/ai/tts`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      text,
+      voice_id: opts.voiceId,
+      model: opts.model,
+      format: opts.format || "mp3",
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "TTS failed");
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+export async function generateMusic(prompt: string, lyrics?: string) {
+  return apiFetch<Record<string, unknown>>("/ai/music", {
+    method: "POST",
+    body: JSON.stringify({ prompt, lyrics }),
+  });
+}
+
+// Helper: read a File from <input type="file"> into base64 + mime.
+export async function fileToBase64(file: File): Promise<{ b64: string; mime: string }> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return { b64: btoa(binary), mime: file.type || "image/png" };
 }
 
 // ─── Payments API ──────────────────────────────────────────────────────────
@@ -308,9 +381,19 @@ export interface CandidateData {
 }
 
 export interface ChatChunk {
-  type: "text_chunk" | "candidates_data" | "done";
+  type:
+    | "text_chunk"
+    | "thinking_chunk"
+    | "tool_use"
+    | "warning"
+    | "candidates_data"
+    | "done";
   content?: string;
   candidates?: CandidateData[];
+  // tool_use payload
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
 }
 
 export interface InvoiceData {

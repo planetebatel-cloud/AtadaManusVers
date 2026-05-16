@@ -164,13 +164,42 @@ class SwipeAction(BaseModel):
 
 # ─── Chat ───────────────────────────────────────────────────────────────────
 
+class ChatHistoryItem(BaseModel):
+    role: str  # "user" | "assistant" | "ai"
+    content: str
+
 class ChatMessage(BaseModel):
     message: str
+    history: list[ChatHistoryItem] | None = None
+    image_b64: str | None = None  # base64-encoded image payload (no data: prefix)
+    image_mime: str | None = None  # "image/png" | "image/jpeg" | "image/webp"
+    tools: list[dict] | None = None  # forwarded to MiniMax as Anthropic tools array
 
 class ChatChunk(BaseModel):
-    type: str = "text_chunk"  # text_chunk | candidates_data | done
+    # text_chunk | thinking_chunk | tool_use | warning | candidates_data | done
+    type: str = "text_chunk"
     content: str = ""
     candidates: list[CandidateOut] | None = None
+
+
+# ─── AI sundries ────────────────────────────────────────────────────────────
+
+class TTSRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=9500)
+    voice_id: str = "English_Graceful_Lady"
+    model: str = "speech-2.6-turbo"
+    format: str = "mp3"
+
+class MusicRequest(BaseModel):
+    prompt: str = Field(..., min_length=4, max_length=600)
+    lyrics: str | None = None  # if None, MiniMax auto-generates
+    model: str = "music-2.6"
+    format: str = "mp3"
+
+class VisionRequest(BaseModel):
+    image_b64: str
+    image_mime: str = "image/png"
+    prompt: str | None = None
 
 
 # ─── Payment ────────────────────────────────────────────────────────────────

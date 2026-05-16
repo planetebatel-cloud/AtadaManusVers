@@ -30,9 +30,15 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = "whsec_PLACEHOLDER"
 
     # LLM (MiniMax)
+    # Anthropic-compatible endpoint (recommended for M2.7/M2.5 with tool use + thinking)
     MINIMAX_API_KEY: str = ""
     MINIMAX_GROUP_ID: str = ""
-    MINIMAX_MODEL: str = "MiniMax-Text-01"
+    MINIMAX_MODEL: str = "MiniMax-M2.7"
+    MINIMAX_ANTHROPIC_BASE: str = "https://api.minimax.io/anthropic"
+    MINIMAX_REST_BASE: str = "https://api.minimax.io"
+    # Per-call ceilings
+    MINIMAX_MAX_TOKENS: int = 1024
+    MINIMAX_TEMPERATURE: float = 0.7
 
     # Maps / commute (optional — empty → haversine estimate, no external calls)
     GOOGLE_MAPS_API_KEY: str = ""

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db.database import engine, Base, SessionLocal
-from app.api import auth, jobs, users, chat, payments, employer, parser
+from app.api import auth, jobs, users, chat, payments, employer, parser, ai
 
 logger = logging.getLogger("atada.main")
 
@@ -42,6 +42,7 @@ app.include_router(chat.router)
 app.include_router(payments.router)
 app.include_router(employer.router)
 app.include_router(parser.router)
+app.include_router(ai.router)
 
 
 @app.on_event("startup")

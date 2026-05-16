@@ -4,42 +4,64 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Briefcase, Users, BarChart3, X, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Briefcase, Users, BarChart3, X, ChevronDown, Sparkles } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getEmployerDashboard, getApplicants, updateApplicantStatus,
-  getJobs, getToken, type EmployerDashboard, type ApplicationData, type JobData,
+  getJobs, getToken, sendOTP, peekDemoOTP, verifyOTP,
+  type EmployerDashboard, type ApplicationData, type JobData,
 } from "@/lib/api";
 import { toast } from "sonner";
+
+const EMPLOYER_DEMO_PHONE = "+972509876543";
 
 type Tab = "dashboard" | "applicants" | "post";
 
 export default function EmployerPage() {
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
+  const { user, login, authenticated } = useAuth();
   const [tab, setTab] = useState<Tab>("dashboard");
   const [dashboard, setDashboard] = useState<EmployerDashboard | null>(null);
   const [applicants, setApplicants] = useState<ApplicationData[]>([]);
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [demoLoading, setDemoLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [dash, apps, jobList] = await Promise.all([
-          getEmployerDashboard().catch(() => null),
-          getApplicants().catch(() => []),
-          getJobs(0, 50).catch(() => []),
-        ]);
-        setDashboard(dash);
-        setApplicants(apps);
-        setJobs(jobList);
-      } catch {}
-      setLoading(false);
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [dash, apps, jobList] = await Promise.all([
+        getEmployerDashboard().catch(() => null),
+        getApplicants().catch(() => []),
+        getJobs(0, 50).catch(() => []),
+      ]);
+      setDashboard(dash);
+      setApplicants(apps);
+      setJobs(jobList);
+    } catch {}
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleEmployerDemo = useCallback(async () => {
+    setDemoLoading(true);
+    try {
+      await sendOTP(EMPLOYER_DEMO_PHONE);
+      const peeked = await peekDemoOTP(EMPLOYER_DEMO_PHONE);
+      const data = await verifyOTP(EMPLOYER_DEMO_PHONE, peeked.code);
+      await login(data.access_token, data.refresh_token);
+      toast.success("Logged in as Employer demo");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.message || "Demo login failed");
+    }
+    setDemoLoading(false);
+  }, [login, loadData]);
+
+  const needsLogin = !authenticated || (!loading && dashboard === null);
 
   const handleStatusChange = useCallback(async (appId: string, status: string) => {
     try {
@@ -89,11 +111,13 @@ export default function EmployerPage() {
       <div className="max-w-[800px] mx-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center py-16"><span className="label-xs">Loading...</span></div>
+        ) : needsLogin ? (
+          <EmployerLoginPrompt onDemo={handleEmployerDemo} loading={demoLoading} authenticated={authenticated} />
         ) : (
           <>
             {tab === "dashboard" && <DashboardTab dashboard={dashboard} />}
             {tab === "applicants" && <ApplicantsTab applicants={applicants} jobs={jobs} onStatusChange={handleStatusChange} />}
-            {tab === "post" && <PostJobTab onPosted={() => { setTab("dashboard"); toast.success("Job posted!"); }} />}
+            {tab === "post" && <PostJobTab onPosted={() => { setTab("dashboard"); loadData(); toast.success("Job posted!"); }} />}
           </>
         )}
       </div>
@@ -101,15 +125,56 @@ export default function EmployerPage() {
   );
 }
 
+// ─── Employer Login Prompt ──────────────────────────────────────────────────
+
+function EmployerLoginPrompt({
+  onDemo, loading, authenticated,
+}: {
+  onDemo: () => void; loading: boolean; authenticated: boolean;
+}) {
+  const [, setLocation] = useLocation();
+  return (
+    <div className="atada-card p-8 text-center">
+      <Sparkles size={28} className="text-[#0A0A0A] mx-auto mb-3" />
+      <p className="text-[16px] font-semibold text-[#0A0A0A] mb-1" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        Employer access required
+      </p>
+      <p className="text-[12px] text-[#808080] mb-5 max-w-[360px] mx-auto" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        {authenticated
+          ? "Your current account isn't an employer. Switch to the employer demo to post jobs and review applicants."
+          : "One-click demo, no phone required. Post jobs, view AI-matched candidates, manage your hiring funnel."}
+      </p>
+      <div className="flex flex-col gap-2 max-w-[280px] mx-auto">
+        <button
+          type="button"
+          onClick={onDemo}
+          disabled={loading}
+          className="btn-pill btn-pill-solid h-10 text-[12px] disabled:opacity-50"
+        >
+          {loading ? "Logging in..." : "Try Employer Demo"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setLocation("/auth")}
+          className="btn-pill btn-pill-outline h-10 text-[12px]"
+        >
+          Use phone login instead
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard Tab ──────────────────────────────────────────────────────────
 
 function DashboardTab({ dashboard }: { dashboard: EmployerDashboard | null }) {
   if (!dashboard) {
+    // Reachable only as a defensive fallback — needsLogin gate in parent
+    // normally renders <EmployerLoginPrompt> in this state.
     return (
       <div className="atada-card p-8 text-center">
         <BarChart3 size={32} className="text-[#D8D8D8] mx-auto mb-3" />
-        <p className="text-[14px] font-medium text-[#505050]">Employer access required</p>
-        <p className="text-[12px] text-[#B8B8B8] mt-1">Log in as an employer to see your dashboard.</p>
+        <p className="text-[14px] font-medium text-[#505050]">No data yet</p>
       </div>
     );
   }

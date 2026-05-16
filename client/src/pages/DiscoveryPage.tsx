@@ -30,8 +30,10 @@ export function DiscoveryPage() {
       timestamp: new Date(),
     },
   ]);
-  const [isTyping, setIsTyping] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  // Derived: indicator visible only while the latest message is from the user
+  // (i.e. AI hasn't started replying yet). No risk of stuck indicators.
+  const isTyping = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "user";
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,18 +70,16 @@ export function DiscoveryPage() {
       swipeJob(job.id, "apply").catch(() => {});
     }
 
-    // AI response
+    // Friendly AI nudge in the chat panel (the toast above is the primary
+    // feedback; this is supplementary context). No artificial typing delay —
+    // the derived isTyping flips correctly based on message roles.
     setTimeout(() => {
-      setIsTyping(true);
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, {
-          id: `ai_${Date.now()}`,
-          role: "ai" as const,
-          content: `Great choice! ${job.company} typically responds within 24h. Want me to find similar roles?`,
-          timestamp: new Date(),
-        }]);
-        setIsTyping(false);
-      }, 1000);
+      setChatMessages(prev => [...prev, {
+        id: `ai_${Date.now()}`,
+        role: "ai" as const,
+        content: `Great choice! ${job.company} typically responds within 24h. Want me to find similar roles?`,
+        timestamp: new Date(),
+      }]);
     }, 400);
   }, []);
 
@@ -97,16 +97,14 @@ export function DiscoveryPage() {
       timestamp: new Date(),
     };
     setChatMessages(prev => [...prev, userMsg]);
-    setIsTyping(true);
+
+    const aiMsgId = `ai_${Date.now()}`;
+    let aiContent = "";
 
     try {
-      let aiContent = "";
-      const aiMsgId = `ai_${Date.now()}`;
-
       for await (const chunk of streamChat(content)) {
         if (chunk.type === "text_chunk" && chunk.content) {
           aiContent += chunk.content;
-          // Update message progressively
           setChatMessages(prev => {
             const existing = prev.find(m => m.id === aiMsgId);
             if (existing) {
@@ -119,7 +117,6 @@ export function DiscoveryPage() {
               timestamp: new Date(),
             }];
           });
-          setIsTyping(false);
         }
         if (chunk.type === "done") break;
       }
@@ -131,7 +128,6 @@ export function DiscoveryPage() {
           content: "I'm here to help you find the perfect job. Tell me more about what you're looking for!",
           timestamp: new Date(),
         }]);
-        setIsTyping(false);
       }
     } catch {
       setChatMessages(prev => [...prev, {
@@ -140,7 +136,6 @@ export function DiscoveryPage() {
         content: "Sorry, I had trouble connecting. Please try again.",
         timestamp: new Date(),
       }]);
-      setIsTyping(false);
     }
   }, []);
 
@@ -224,9 +219,10 @@ export function DiscoveryPage() {
               ))}
               {isTyping && (
                 <motion.div
+                  key="typing-indicator"
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0.18 } }}
                   className="flex items-center gap-2 mb-3"
                 >
                   <div

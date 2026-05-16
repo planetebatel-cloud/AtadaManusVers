@@ -35,8 +35,11 @@ export default function DemoBanner() {
       <div className="max-w-[1400px] mx-auto px-4 h-9 flex items-center justify-between gap-3 text-[11px]">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles size={12} className="shrink-0" />
-          <span className="truncate">
+          <span className="hidden md:inline truncate">
             ATADA · Live demo · No phone required · One-click access to worker and employer flows
+          </span>
+          <span className="md:hidden truncate">
+            ATADA · Live demo · Try worker / employer
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
