@@ -4,7 +4,7 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Briefcase, Users, BarChart3, X, ChevronDown, Sparkles } from "lucide-react";
+import { Plus, Briefcase, Users, BarChart3, X, ChevronDown, Sparkles } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -75,18 +75,6 @@ export default function EmployerPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-[#F7F7F7]">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#ECECEC]">
-        <button onClick={() => setLocation("/")} className="flex items-center gap-2 text-[#505050] hover:text-[#0A0A0A] transition-colors">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]" />
-          <span className="label-xs" style={{ fontFamily: "'DM Mono', monospace" }}>EMPLOYER PORTAL</span>
-        </div>
-        <div className="w-8" />
-      </header>
-
       {/* Tabs */}
       <div className="flex bg-white border-b border-[#ECECEC]">
         {([

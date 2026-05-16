@@ -4,7 +4,7 @@
  */
 
 import { motion } from "framer-motion";
-import { ArrowLeft, Briefcase, Clock, CheckCircle, XCircle, Star } from "lucide-react";
+import { Briefcase, Clock, CheckCircle, XCircle, Star } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { getMyApplications, getJob } from "@/lib/api";
@@ -56,20 +56,7 @@ export default function ApplicationsPage() {
       animate={{ opacity: 1 }}
       className="min-h-screen bg-[#F7F7F7]"
     >
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#ECECEC]">
-        <button onClick={() => setLocation("/")} className="flex items-center gap-2 text-[#505050] hover:text-[#0A0A0A] transition-colors">
-          <ArrowLeft size={18} />
-          <span className="text-[13px] font-medium hidden sm:inline" style={{ fontFamily: "'DM Sans', sans-serif" }}>Back</span>
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]" />
-          <span className="label-xs" style={{ fontFamily: "'DM Mono', monospace" }}>ATADA</span>
-        </div>
-        <div className="w-16" />
-      </header>
-
-      <div className="max-w-[600px] mx-auto p-4">
+      <div className="max-w-[600px] mx-auto p-4 pt-6">
         <div className="flex items-center gap-2 mb-4">
           <Briefcase size={16} className="text-[#808080]" />
           <span className="label-sm">My Applications</span>

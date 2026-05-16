@@ -13,6 +13,7 @@ import PricingPage from "@/pages/PricingPage";
 import EmployerPage from "@/pages/EmployerPage";
 import { Route, Switch } from "wouter";
 import DemoBanner from "./components/DemoBanner";
+import Header from "./components/Header";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Onboarding, useOnboarding } from "./components/Onboarding";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -41,6 +42,7 @@ function AppContent() {
     <>
       {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
       <DemoBanner />
+      <Header />
       <Router />
     </>
   );
