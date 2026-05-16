@@ -19,19 +19,72 @@ import { getJobs, getJobFeed, swipeJob, streamChat, isAuthenticated } from "@/li
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
+
+const CHAT_HISTORY_KEY = "atada_chat_history_v1";
+const MAX_PERSISTED_MESSAGES = 40;
+
+function loadPersistedHistory(): ChatMessage[] | null {
+  try {
+    const raw = localStorage.getItem(CHAT_HISTORY_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Array<Omit<ChatMessage, "timestamp"> & { timestamp: string }>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return null;
+  }
+}
+
+function persistHistory(messages: ChatMessage[]) {
+  try {
+    const trimmed = messages.slice(-MAX_PERSISTED_MESSAGES);
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch {
+    // QuotaExceeded / private-mode — silently degrade
+  }
+}
+
+function buildInitialGreeting(
+  userName: string | undefined,
+  userTitle: string | undefined,
+  topJob: Job | undefined,
+): ChatMessage {
+  const first = userName?.trim().split(/\s+/)[0];
+  const hello = first ? `Hey ${first}` : "Hey";
+  let body: string;
+  if (topJob) {
+    const role = userTitle ? `As a ${userTitle.toLowerCase()}, ` : "";
+    body = `${role}your top match today is ${topJob.company} (${topJob.title}) at ${topJob.matchScore}%. Want me to break down why?`;
+  } else if (userTitle) {
+    body = `Tell me what you're looking for — I'll filter today's openings around your ${userTitle.toLowerCase()} background.`;
+  } else {
+    body = "Tell me what kind of job you're looking for and I'll pull the best matches for you.";
+  }
+  return {
+    id: `m_init_${Date.now()}`,
+    role: "ai",
+    content: `${hello}. ${body}`,
+    timestamp: new Date(),
+  };
+}
 
 export function DiscoveryPage() {
   const { goNext } = useSwipeLayout();
   const { user, authenticated } = useAuth();
   const [appliedCount, setAppliedCount] = useState(0);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
+  // On mount: prefer persisted history; otherwise render a placeholder
+  // greeting that gets replaced once we know the user + top job.
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const persisted = loadPersistedHistory();
+    if (persisted) return persisted;
+    return [{
       id: "m_init",
       role: "ai",
       content: "Hey! I'm your Atada AI assistant. Tell me what kind of job you're looking for.",
       timestamp: new Date(),
-    },
-  ]);
+    }];
+  });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [detailJob, setDetailJob] = useState<Job | null>(null);
   const [, setLocation] = useLocation();
@@ -62,6 +115,32 @@ export function DiscoveryPage() {
     })();
     return () => { cancelled = true; };
   }, [authenticated]);
+
+  // Persist chat history any time it changes (no auto-restore mid-stream —
+  // streaming updates the last message in place which is exactly what we save).
+  useEffect(() => {
+    persistHistory(chatMessages);
+  }, [chatMessages]);
+
+  // Personalize the very first AI greeting once jobs + user are known.
+  // Triggers exactly once per session if the user is still on the default
+  // greeting (i.e. no real conversation yet).
+  useEffect(() => {
+    if (loading || jobs.length === 0) return;
+    if (chatMessages.length !== 1) return;
+    const only = chatMessages[0];
+    if (only.role !== "ai" || !only.id.startsWith("m_init")) return;
+    const topJob = [...jobs].sort((a, b) => b.matchScore - a.matchScore)[0];
+    setChatMessages([buildInitialGreeting(user?.name, user?.title, topJob)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, jobs, user?.name, user?.title]);
+
+  const handleNewChat = useCallback(() => {
+    try { localStorage.removeItem(CHAT_HISTORY_KEY); } catch {}
+    const topJob = [...jobs].sort((a, b) => b.matchScore - a.matchScore)[0];
+    setChatMessages([buildInitialGreeting(user?.name, user?.title, topJob)]);
+    toast("Chat cleared", { duration: 1500 });
+  }, [jobs, user?.name, user?.title]);
 
   const handleApply = useCallback((job: Job) => {
     setAppliedCount(c => c + 1);
@@ -225,6 +304,15 @@ export function DiscoveryPage() {
                 AI Assistant
               </span>
             </div>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              title="Clear chat history"
+              className="text-[#B8B8B8] hover:text-[#0A0A0A] transition-colors p-1"
+              aria-label="New chat"
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
 
           {/* Messages */}
