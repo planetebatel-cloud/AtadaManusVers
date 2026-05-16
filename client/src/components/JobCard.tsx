@@ -13,6 +13,7 @@ interface JobCardProps {
   job: Job;
   onApply: (job: Job) => void;
   onSkip: (job: Job) => void;
+  onDetails?: (job: Job) => void;
   isActive?: boolean;
 }
 
@@ -23,7 +24,7 @@ function formatMin(m: number): string {
   return rem ? `${h}h ${rem}m` : `${h}h`;
 }
 
-export function JobCard({ job, onApply, onSkip, isActive = true }: JobCardProps) {
+export function JobCard({ job, onApply, onSkip, onDetails, isActive = true }: JobCardProps) {
   const [exiting, setExiting] = useState<"apply" | "skip" | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -98,8 +99,15 @@ export function JobCard({ job, onApply, onSkip, isActive = true }: JobCardProps)
 
           {/* Card */}
           <div
-            className="w-full bg-white rounded-xl border border-[#ECECEC] overflow-hidden"
+            className={`w-full bg-white rounded-xl border border-[#ECECEC] overflow-hidden ${onDetails ? "cursor-pointer" : ""}`}
             style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04)" }}
+            onClick={(e) => {
+              // Only open details if the user clicked the card body, not a
+              // button. Buttons inside the card stop propagation below.
+              if (onDetails && !(e.target as HTMLElement).closest("button")) {
+                onDetails(job);
+              }
+            }}
           >
             {/* Hero image */}
             <div className="relative h-[160px] bg-[#F5F5F5] overflow-hidden">
@@ -258,9 +266,10 @@ interface JobCardStackProps {
   jobs: Job[];
   onApply: (job: Job) => void;
   onSkip: (job: Job) => void;
+  onDetails?: (job: Job) => void;
 }
 
-export function JobCardStack({ jobs, onApply, onSkip }: JobCardStackProps) {
+export function JobCardStack({ jobs, onApply, onSkip, onDetails }: JobCardStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleApply = (job: Job) => {
@@ -300,7 +309,7 @@ export function JobCardStack({ jobs, onApply, onSkip }: JobCardStackProps) {
       )}
 
       <div className="relative z-10">
-        <JobCard key={currentJob.id} job={currentJob} onApply={handleApply} onSkip={handleSkip} isActive />
+        <JobCard key={currentJob.id} job={currentJob} onApply={handleApply} onSkip={handleSkip} onDetails={onDetails} isActive />
       </div>
 
       <div className="flex justify-center mt-4">

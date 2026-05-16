@@ -11,11 +11,13 @@ import { useState, useEffect, useCallback } from "react";
 import { AvatarPanel } from "@/components/AvatarPanel";
 import { ChatMessageItem, InputBar } from "@/components/ChatPanel";
 import { JobCardStack } from "@/components/JobCard";
+import { JobDetailModal } from "@/components/JobDetailModal";
 import { useSwipeLayout } from "@/components/SwipeLayout";
 import { mockUser, mockJobs, apiJobToJob } from "@/lib/data";
 import type { ChatMessage, Job } from "@/lib/data";
 import { getJobs, getJobFeed, swipeJob, streamChat, isAuthenticated } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 export function DiscoveryPage() {
@@ -31,6 +33,8 @@ export function DiscoveryPage() {
     },
   ]);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [detailJob, setDetailJob] = useState<Job | null>(null);
+  const [, setLocation] = useLocation();
   // Derived: indicator visible only while the latest message is from the user
   // (i.e. AI hasn't started replying yet). No risk of stuck indicators.
   const isTyping = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "user";
@@ -61,8 +65,12 @@ export function DiscoveryPage() {
 
   const handleApply = useCallback((job: Job) => {
     setAppliedCount(c => c + 1);
-    toast(`Applied to ${job.title}`, {
+    toast.success(`Applied to ${job.title}`, {
       description: `${job.company} · ${job.location}`,
+      action: {
+        label: "View",
+        onClick: () => setLocation("/applications"),
+      },
     });
 
     // Record swipe in backend
@@ -83,10 +91,18 @@ export function DiscoveryPage() {
     }, 400);
   }, []);
 
-  const handleSkip = useCallback((_job: Job) => {
+  const handleSkip = useCallback((job: Job) => {
+    toast(`Skipped ${job.company}`, {
+      description: "Won't show up again in this session",
+      duration: 2000,
+    });
     if (isAuthenticated()) {
-      swipeJob(_job.id, "skip").catch(() => {});
+      swipeJob(job.id, "skip").catch(() => {});
     }
+  }, []);
+
+  const handleDetails = useCallback((job: Job) => {
+    setDetailJob(job);
   }, []);
 
   const handleSend = useCallback(async (content: string) => {
@@ -287,6 +303,7 @@ export function DiscoveryPage() {
                 jobs={jobs}
                 onApply={handleApply}
                 onSkip={handleSkip}
+                onDetails={handleDetails}
               />
             )}
           </div>
@@ -316,6 +333,7 @@ export function DiscoveryPage() {
                 jobs={jobs}
                 onApply={handleApply}
                 onSkip={handleSkip}
+                onDetails={handleDetails}
               />
             )}
           </div>
@@ -366,6 +384,15 @@ export function DiscoveryPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Job detail modal — opened from card body click on either layout */}
+      <JobDetailModal
+        job={detailJob}
+        open={!!detailJob}
+        onClose={() => setDetailJob(null)}
+        onApply={handleApply}
+        onSkip={handleSkip}
+      />
     </div>
   );
 }
