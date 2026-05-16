@@ -15,7 +15,7 @@ import { JobDetailModal } from "@/components/JobDetailModal";
 import { useSwipeLayout } from "@/components/SwipeLayout";
 import { mockUser, mockJobs, apiJobToJob } from "@/lib/data";
 import type { ChatMessage, Job } from "@/lib/data";
-import { getJobs, getJobFeed, swipeJob, streamChat, isAuthenticated } from "@/lib/api";
+import { getJobs, getJobFeed, swipeJob, streamChat, isAuthenticated, saveJob, unsaveJob, getSavedJobs } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -93,6 +93,7 @@ export function DiscoveryPage() {
   const isTyping = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === "user";
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set());
 
   // Fetch jobs from API — personalized feed for authed users
   useEffect(() => {
@@ -183,6 +184,33 @@ export function DiscoveryPage() {
   const handleDetails = useCallback((job: Job) => {
     setDetailJob(job);
   }, []);
+
+  const handleSaveToggle = useCallback((job: Job, saved: boolean) => {
+    if (!isAuthenticated()) {
+      toast("Sign in to save jobs", { description: "Use the Worker demo for one-click access." });
+      return;
+    }
+    setSavedJobIds(prev => {
+      const next = new Set(prev);
+      if (saved) next.add(job.id); else next.delete(job.id);
+      return next;
+    });
+    const action = saved ? saveJob(job.id) : unsaveJob(job.id);
+    action
+      .then(() => toast(saved ? `Saved ${job.company}` : `Removed ${job.company}`, { duration: 1500 }))
+      .catch(() => toast.error("Couldn't sync saved state"));
+  }, []);
+
+  // Load saved-job ids once on auth so the bookmark icon reflects DB state.
+  useEffect(() => {
+    if (!authenticated) {
+      setSavedJobIds(new Set());
+      return;
+    }
+    getSavedJobs()
+      .then(list => setSavedJobIds(new Set(list.map(j => j.id))))
+      .catch(() => {});
+  }, [authenticated]);
 
   const handleSend = useCallback(async (content: string) => {
     const userMsg: ChatMessage = {
@@ -277,6 +305,7 @@ export function DiscoveryPage() {
             user={mockUser}
             matchCount={jobs.length}
             appliedCount={appliedCount}
+            savedCount={savedJobIds.size}
           />
         </motion.div>
 
@@ -392,6 +421,8 @@ export function DiscoveryPage() {
                 onApply={handleApply}
                 onSkip={handleSkip}
                 onDetails={handleDetails}
+                onSaveToggle={handleSaveToggle}
+                savedJobIds={savedJobIds}
               />
             )}
           </div>
@@ -422,6 +453,8 @@ export function DiscoveryPage() {
                 onApply={handleApply}
                 onSkip={handleSkip}
                 onDetails={handleDetails}
+                onSaveToggle={handleSaveToggle}
+                savedJobIds={savedJobIds}
               />
             )}
           </div>

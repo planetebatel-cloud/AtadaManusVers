@@ -11,6 +11,7 @@ import AuthPage from "@/pages/AuthPage";
 import ApplicationsPage from "@/pages/ApplicationsPage";
 import PricingPage from "@/pages/PricingPage";
 import EmployerPage from "@/pages/EmployerPage";
+import SavedPage from "@/pages/SavedPage";
 import { Route, Switch } from "wouter";
 import DemoBanner from "./components/DemoBanner";
 import Header from "./components/Header";
@@ -27,6 +28,7 @@ function Router() {
       <Route path={"/auth"} component={AuthPage} />
       <Route path={"/profile"} component={ProfilePage} />
       <Route path={"/applications"} component={ApplicationsPage} />
+      <Route path={"/saved"} component={SavedPage} />
       <Route path={"/pricing"} component={PricingPage} />
       <Route path={"/employer"} component={EmployerPage} />
       <Route path={"/404"} component={NotFound} />

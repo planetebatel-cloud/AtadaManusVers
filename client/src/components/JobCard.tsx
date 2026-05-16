@@ -5,7 +5,7 @@
  */
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { Check, Clock, MapPin, X, Briefcase, Car, Bus } from "lucide-react";
+import { Check, Clock, MapPin, X, Briefcase, Car, Bus, Bookmark } from "lucide-react";
 import { useState } from "react";
 import type { Job } from "@/lib/data";
 
@@ -14,6 +14,8 @@ interface JobCardProps {
   onApply: (job: Job) => void;
   onSkip: (job: Job) => void;
   onDetails?: (job: Job) => void;
+  onSaveToggle?: (job: Job, saved: boolean) => void;
+  initialSaved?: boolean;
   isActive?: boolean;
 }
 
@@ -24,9 +26,18 @@ function formatMin(m: number): string {
   return rem ? `${h}h ${rem}m` : `${h}h`;
 }
 
-export function JobCard({ job, onApply, onSkip, onDetails, isActive = true }: JobCardProps) {
+export function JobCard({ job, onApply, onSkip, onDetails, onSaveToggle, initialSaved = false, isActive = true }: JobCardProps) {
   const [exiting, setExiting] = useState<"apply" | "skip" | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [saved, setSaved] = useState(initialSaved);
+
+  const handleSaveToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onSaveToggle) return;
+    const next = !saved;
+    setSaved(next);
+    onSaveToggle(job, next);
+  };
 
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-12, 12]);
@@ -142,6 +153,22 @@ export function JobCard({ job, onApply, onSkip, onDetails, isActive = true }: Jo
                   {job.type}
                 </span>
               </div>
+
+              {/* Save (bookmark) button */}
+              {onSaveToggle && (
+                <button
+                  type="button"
+                  onClick={handleSaveToggle}
+                  title={saved ? "Remove from saved" : "Save for later"}
+                  className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
+                  style={{ boxShadow: "0 2px 6px rgba(0,0,0,0.12)" }}
+                >
+                  <Bookmark
+                    size={14}
+                    className={saved ? "text-[#0A0A0A] fill-[#0A0A0A]" : "text-[#505050]"}
+                  />
+                </button>
+              )}
             </div>
 
             {/* Match score bar */}
@@ -267,9 +294,11 @@ interface JobCardStackProps {
   onApply: (job: Job) => void;
   onSkip: (job: Job) => void;
   onDetails?: (job: Job) => void;
+  onSaveToggle?: (job: Job, saved: boolean) => void;
+  savedJobIds?: Set<string>;
 }
 
-export function JobCardStack({ jobs, onApply, onSkip, onDetails }: JobCardStackProps) {
+export function JobCardStack({ jobs, onApply, onSkip, onDetails, onSaveToggle, savedJobIds }: JobCardStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleApply = (job: Job) => {
@@ -309,7 +338,16 @@ export function JobCardStack({ jobs, onApply, onSkip, onDetails }: JobCardStackP
       )}
 
       <div className="relative z-10">
-        <JobCard key={currentJob.id} job={currentJob} onApply={handleApply} onSkip={handleSkip} onDetails={onDetails} isActive />
+        <JobCard
+          key={currentJob.id}
+          job={currentJob}
+          onApply={handleApply}
+          onSkip={handleSkip}
+          onDetails={onDetails}
+          onSaveToggle={onSaveToggle}
+          initialSaved={savedJobIds?.has(currentJob.id) || false}
+          isActive
+        />
       </div>
 
       <div className="flex justify-center mt-4">

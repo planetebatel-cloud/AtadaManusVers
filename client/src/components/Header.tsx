@@ -16,6 +16,7 @@ type NavItem = { href: string; label: string; gated?: "worker" | "employer" };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Feed" },
+  { href: "/saved", label: "Saved", gated: "worker" },
   { href: "/applications", label: "Applications", gated: "worker" },
   { href: "/employer", label: "Employer" },
   { href: "/pricing", label: "Pricing" },
