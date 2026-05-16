@@ -4,18 +4,43 @@ Main entry point. Mounts all API routers.
 """
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.config import settings
 from app.db.database import engine, Base, SessionLocal
-from app.api import auth, jobs, users, chat, payments, employer, parser, ai
+from app.api import auth, jobs, users, chat, payments, employer, parser, ai, uploads
 
 logger = logging.getLogger("atada.main")
 
 # Create all tables on startup (dev convenience — use Alembic in production)
 Base.metadata.create_all(bind=engine)
+
+# Lightweight in-place migrations for SQLite: add columns that exist on the
+# model but not on a pre-existing users table. Idempotent.
+def _ensure_user_columns():
+    expected = {"avatar_url": "VARCHAR(500)"}
+    with engine.connect() as conn:
+        rows = conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()
+        existing = {r[1] for r in rows}
+        for col, type_ in expected.items():
+            if col not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {col} {type_}")
+                logger.info("Added column users.%s", col)
+        conn.commit()
+
+try:
+    _ensure_user_columns()
+except Exception as exc:  # noqa: BLE001
+    logger.warning("Column migration skipped: %s", exc)
+
+# Avatars / uploaded files are served from a static dir alongside the app.
+UPLOAD_ROOT = Path(__file__).resolve().parent.parent / "uploads"
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -43,6 +68,10 @@ app.include_router(payments.router)
 app.include_router(employer.router)
 app.include_router(parser.router)
 app.include_router(ai.router)
+app.include_router(uploads.router)
+
+# Serve uploaded files (avatars, etc.)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_ROOT)), name="uploads")
 
 
 @app.on_event("startup")

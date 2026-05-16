@@ -42,6 +42,7 @@ class UserOut(BaseModel):
     skills: list[str] = []
     title: str | None = None
     about: str | None = None
+    avatar_url: str | None = None
     role: str = "worker"
     plan: str = "free"
     created_at: datetime | None = None
@@ -58,6 +59,7 @@ class UserUpdate(BaseModel):
     skills: list[str] | None = None
     title: str | None = None
     about: str | None = None
+    avatar_url: str | None = None
 
 
 # ─── Job ────────────────────────────────────────────────────────────────────

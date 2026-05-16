@@ -235,6 +235,43 @@ export async function* streamChat(
   }
 }
 
+// ─── Saved jobs (bookmarks) ────────────────────────────────────────────────
+
+export async function saveJob(jobId: string) {
+  return apiFetch<{ status: string; job_id: string }>(`/jobs/${jobId}/save`, {
+    method: "POST",
+  });
+}
+
+export async function unsaveJob(jobId: string) {
+  return apiFetch<{ status: string; job_id: string }>(`/jobs/${jobId}/save`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSavedJobs() {
+  return apiFetch<JobData[]>("/jobs/saved/list");
+}
+
+// ─── Uploads (avatar) ──────────────────────────────────────────────────────
+
+export async function uploadAvatar(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const headers: Record<string, string> = {};
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  const res = await fetch(`${API_BASE}/uploads/avatar`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Avatar upload failed");
+  }
+  return res.json();
+}
+
 // ─── AI sundries (vision, TTS, music) ──────────────────────────────────────
 
 export async function describeImage(imageB64: string, imageMime: string, prompt?: string) {
@@ -331,6 +368,7 @@ export interface UserProfile {
   skills: string[];
   title?: string;
   about?: string;
+  avatar_url?: string | null;
   role: string;
   plan: string;
 }

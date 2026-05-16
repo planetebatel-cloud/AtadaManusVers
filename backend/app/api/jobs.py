@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.domain.models import Job, User, Match, Application
+from app.domain.models import Job, User, Match, Application, SavedJob
 from app.domain.schemas import JobOut, JobCreate, SwipeAction, ApplicationOut
 from app.api.deps import get_current_user, get_optional_user
 from app.services.matching import compute_matches_for_user
@@ -207,3 +207,68 @@ def swipe_job(
         return ApplicationOut.model_validate(app)
 
     return {"status": "skipped", "job_id": body.job_id}
+
+
+# ─── Saved Jobs (bookmark / save-for-later) ─────────────────────────────────
+
+@router.post("/{job_id}/save")
+def save_job(
+    job_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    existing = db.query(SavedJob).filter(
+        SavedJob.user_id == user.id,
+        SavedJob.job_id == job_id,
+    ).first()
+    if existing:
+        return {"status": "already_saved", "job_id": job_id}
+    saved = SavedJob(user_id=user.id, job_id=job_id)
+    db.add(saved)
+    db.commit()
+    return {"status": "saved", "job_id": job_id}
+
+
+@router.delete("/{job_id}/save")
+def unsave_job(
+    job_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    saved = db.query(SavedJob).filter(
+        SavedJob.user_id == user.id,
+        SavedJob.job_id == job_id,
+    ).first()
+    if not saved:
+        raise HTTPException(404, "Not saved")
+    db.delete(saved)
+    db.commit()
+    return {"status": "unsaved", "job_id": job_id}
+
+
+@router.get("/saved/list", response_model=list[JobOut])
+def list_saved_jobs(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Worker's bookmarked jobs, newest-saved first."""
+    rows = (
+        db.query(SavedJob)
+        .filter(SavedJob.user_id == user.id)
+        .order_by(SavedJob.created_at.desc())
+        .all()
+    )
+    result = []
+    for row in rows:
+        job = db.query(Job).filter(Job.id == row.job_id).first()
+        if not job:
+            continue
+        match = db.query(Match).filter(
+            Match.user_id == user.id, Match.job_id == job.id
+        ).first()
+        result.append(_job_to_out(job, match, user))
+    db.commit()
+    return result

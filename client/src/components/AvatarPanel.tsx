@@ -4,21 +4,76 @@
  * Compact, information-dense design
  */
 
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, ChevronRight, FileText, LogIn, Zap } from "lucide-react";
+import { Briefcase, Bookmark, Camera, ChevronRight, FileText, LogIn, Zap } from "lucide-react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import type { UserProfile } from "@/lib/data";
+import { useAuth } from "@/contexts/AuthContext";
+import { uploadAvatar } from "@/lib/api";
 import { useSwipeLayout } from "./SwipeLayout";
 
 interface AvatarPanelProps {
   user: UserProfile;
   matchCount?: number;
   appliedCount?: number;
+  savedCount?: number;
 }
 
-export function AvatarPanel({ user, matchCount = 6, appliedCount = 0 }: AvatarPanelProps) {
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+// avatar_url comes back as "/uploads/avatars/...". Resolve against the API
+// origin so it works in dev (proxied) and prod (separate hosts).
+function resolveAvatarUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  // strip "/api" suffix off API_BASE — uploads are served from the bare origin
+  const origin = API_BASE.replace(/\/api\/?$/, "");
+  return `${origin}${url}`;
+}
+
+export function AvatarPanel({ user, matchCount = 6, appliedCount = 0, savedCount = 0 }: AvatarPanelProps) {
   const { goNext } = useSwipeLayout();
   const [, setLocation] = useLocation();
+  const { user: authUser, authenticated, refreshUser } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Prefer the live authenticated user's avatar/name/location over the mockUser
+  // prop. The prop is still passed for non-auth flows so the UI keeps working.
+  const displayName = authUser?.name || user.name;
+  const displayInitials = authUser?.name
+    ? authUser.name.trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2).toUpperCase() || user.initials
+    : user.initials;
+  const displayLocation = authUser?.location || user.location;
+  const avatarUrl = resolveAvatarUrl(authUser?.avatar_url);
+
+  const handleAvatarClick = () => {
+    if (!authenticated) {
+      setLocation("/auth");
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Max image size: 4 MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      await uploadAvatar(file);
+      await refreshUser();
+      toast.success("Profile photo updated");
+    } catch (err: any) {
+      toast.error(err?.message || "Upload failed");
+    }
+    setUploading(false);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white">
@@ -45,33 +100,52 @@ export function AvatarPanel({ user, matchCount = 6, appliedCount = 0 }: AvatarPa
           transition={{ delay: 0.08, duration: 0.35 }}
           className="flex flex-col gap-3"
         >
-          {/* Avatar with depth */}
-          <div className="relative">
+          {/* Avatar with depth + upload affordance */}
+          <div className="relative w-14 h-14">
             <div
               className="absolute inset-0 bg-[#0A0A0A] rounded-full blur-lg opacity-20"
               style={{ transform: "scale(1.15)" }}
             />
-            <div
-              className="relative w-14 h-14 rounded-full bg-[#0A0A0A] flex items-center justify-center border-2 border-[#ECECEC]"
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              disabled={uploading}
+              className="group relative w-14 h-14 rounded-full bg-[#0A0A0A] flex items-center justify-center border-2 border-[#ECECEC] overflow-hidden disabled:opacity-60"
               style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+              title={authenticated ? "Change profile photo" : "Log in to upload"}
             >
-              <span
-                className="text-white text-[16px] font-bold"
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                {user.initials}
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName || "avatar"} className="w-full h-full object-cover" />
+              ) : (
+                <span
+                  className="text-white text-[16px] font-bold"
+                  style={{ fontFamily: "'DM Sans', sans-serif" }}
+                >
+                  {displayInitials}
+                </span>
+              )}
+              {/* Hover overlay */}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera size={16} className="text-white" />
               </span>
-            </div>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFile}
+            />
           </div>
 
           {/* Name + location */}
           <div>
-            <h3 className="h4 text-[#0A0A0A] mb-1">{user.name}</h3>
+            <h3 className="h4 text-[#0A0A0A] mb-1">{displayName}</h3>
             <p
               className="text-[12px] text-[#808080]"
               style={{ fontFamily: "'DM Mono', monospace" }}
             >
-              📍 {user.location}
+              📍 {displayLocation}
             </p>
           </div>
         </motion.div>
@@ -101,15 +175,19 @@ export function AvatarPanel({ user, matchCount = 6, appliedCount = 0 }: AvatarPa
             </div>
             <div className="label-xs mt-1">Applied</div>
           </div>
-          <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setLocation("/saved")}
+            className="text-center hover:bg-white rounded transition-colors"
+          >
             <div
               className="text-[21px] font-bold text-[#0A0A0A] tabular-nums"
               style={{ fontFamily: "'DM Mono', monospace" }}
             >
-              0
+              {savedCount}
             </div>
             <div className="label-xs mt-1">Saved</div>
-          </div>
+          </button>
         </motion.div>
 
         {/* Skills section — compact */}

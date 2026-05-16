@@ -31,6 +31,13 @@ function initials(name?: string | null, phone?: string | null) {
   return "A";
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+function resolveAvatar(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${API_BASE.replace(/\/api\/?$/, "")}${url}`;
+}
+
 export default function Header() {
   const { user, authenticated, logout } = useAuth();
   const [location, setLocation] = useLocation();
@@ -130,12 +137,17 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setMenuOpen(o => !o)}
-                className="w-8 h-8 rounded-full bg-[#0A0A0A] text-white text-[11px] font-semibold flex items-center justify-center hover:opacity-90 transition"
+                className="w-8 h-8 rounded-full bg-[#0A0A0A] text-white text-[11px] font-semibold flex items-center justify-center hover:opacity-90 transition overflow-hidden"
                 style={{ fontFamily: "'DM Mono', monospace" }}
                 aria-label="Account menu"
                 title={user?.name || user?.phone || "Account"}
               >
-                {initials(user?.name, user?.phone)}
+                {(() => {
+                  const av = resolveAvatar(user?.avatar_url);
+                  return av
+                    ? <img src={av} alt="" className="w-full h-full object-cover" />
+                    : initials(user?.name, user?.phone);
+                })()}
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-10 w-44 bg-white border border-[#ECECEC] rounded-lg shadow-lg overflow-hidden">

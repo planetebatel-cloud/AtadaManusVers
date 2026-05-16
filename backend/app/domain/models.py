@@ -37,6 +37,7 @@ class User(Base):
     skills = Column(JSON, default=list)         # ["React", "TypeScript"]
     title = Column(String(200), nullable=True)  # "Frontend Developer"
     about = Column(Text, nullable=True)
+    avatar_url = Column(String(500), nullable=True)
     role = Column(String(20), default="worker")  # worker | employer
     plan = Column(String(20), default="free")    # free | pro | pro_plus
     stripe_customer_id = Column(String(100), nullable=True)
@@ -46,6 +47,7 @@ class User(Base):
 
     applications = relationship("Application", back_populates="user")
     resumes = relationship("Resume", back_populates="user")
+    saved_jobs = relationship("SavedJob", back_populates="user", cascade="all, delete-orphan")
 
 
 class GuestSession(Base):
@@ -164,6 +166,20 @@ class Resume(Base):
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
     user = relationship("User", back_populates="resumes")
+
+
+# ─── Saved Jobs (bookmark / save-for-later) ────────────────────────────────
+
+class SavedJob(Base):
+    __tablename__ = "saved_jobs"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    job_id = Column(String, ForeignKey("jobs.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=_now)
+
+    user = relationship("User", back_populates="saved_jobs")
+    job = relationship("Job")
 
 
 # ─── Invoices ───────────────────────────────────────────────────────────────
