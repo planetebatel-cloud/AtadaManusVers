@@ -12,6 +12,7 @@ export const preload = {
   saved: () => import("@/pages/SavedPage"),
   pricing: () => import("@/pages/PricingPage"),
   employer: () => import("@/pages/EmployerPage"),
+  legal: () => import("@/pages/LegalPage"),
   notFound: () => import("@/pages/NotFound"),
 } as const;
 

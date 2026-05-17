@@ -28,6 +28,7 @@ const ApplicationsPage = lazy(preload.applications);
 const SavedPage = lazy(preload.saved);
 const PricingPage = lazy(preload.pricing);
 const EmployerPage = lazy(preload.employer);
+const LegalPage = lazy(preload.legal);
 const NotFound = lazy(preload.notFound);
 
 function RouteFallback() {
@@ -52,6 +53,8 @@ function Router() {
         <Route path={"/saved"} component={SavedPage} />
         <Route path={"/pricing"} component={PricingPage} />
         <Route path={"/employer"} component={EmployerPage} />
+        <Route path={"/privacy"}>{() => <LegalPage doc="privacy" />}</Route>
+        <Route path={"/terms"}>{() => <LegalPage doc="terms" />}</Route>
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

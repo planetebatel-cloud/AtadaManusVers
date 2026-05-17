@@ -17,6 +17,33 @@
 | GitHub repo (public) | github.com | `planetebatel-cloud/AtadaManusVers` |
 | API токены (локально, в `.gitignore`) | `D:\AtadaManusVers\.deploy-tokens.env` | `VERCEL_TOKEN`, `RENDER_API_KEY`, `MINIMAX_API_KEY`, `JWT_SECRET` |
 
+---
+
+## 🔑 Env vars для перехода с MVP-демо в product-ready
+
+Бэк уже умеет работать с этими переменными — добавь их в Render Dashboard →
+Environment → Add Environment Variable. Без них всё работает в "demo mode"
+(SQLite, console-print SMS, no error tracking).
+
+| Env var | Что включает | Где взять |
+|---|---|---|
+| `DATABASE_URL` | Postgres вместо SQLite (данные не сбрасываются) | [neon.tech](https://neon.tech) → новый проект → копируй "Pooled connection" |
+| `TWILIO_ACCOUNT_SID` | Реальные SMS вместо console-print | [console.twilio.com](https://console.twilio.com) → Account Info |
+| `TWILIO_AUTH_TOKEN` | то же | то же |
+| `TWILIO_FROM_NUMBER` | то же | купи израильский номер в Twilio (~$1/мес) |
+| `SENTRY_DSN` | Error tracking | [sentry.io](https://sentry.io) → New Project → FastAPI → копируй DSN |
+| `STRIPE_SECRET_KEY` | Реальные платежи (вместо test mode) | Stripe Dashboard → API keys → "Secret key" (sk_live_) |
+| `STRIPE_WEBHOOK_SECRET` | Подпись webhooks | Stripe Dashboard → Webhooks → endpoint → "Signing secret" |
+| `HCAPTCHA_SECRET` | Проверка captcha на бэке (если включишь) | [hcaptcha.com](https://hcaptcha.com) → site settings → Secret key |
+| `VITE_HCAPTCHA_SITE_KEY` (на Vercel) | Виджет на фронте | hCaptcha → site key |
+
+**Порядок применения:** добавил переменные → Render автоматически передеплоит
+бэк → проверь `curl /api/health`. Никаких code-changes не нужно — всё уже
+env-driven.
+
+**Rate limits активны независимо от env:**
+- `/api/auth/otp/send` — 5/мин на IP + 3/час на phone (demo phones освобождены)
+
 **Что отличается от инструкций ниже:**
 - Деплой был выполнен через API Render и Vercel, не через их UI.
 - Репо был сделан публичным (Render free без OAuth не может клонировать private).

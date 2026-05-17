@@ -25,12 +25,17 @@ export default function AuthPage() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState<"worker" | "employer" | null>(null);
+  const [consented, setConsented] = useState(false);
   const [, setLocation] = useLocation();
   const { login } = useAuth();
 
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (phone.length < 10) return;
+    if (!consented) {
+      toast.error("Please accept the Terms and Privacy Policy to continue.");
+      return;
+    }
     setLoading(true);
     try {
       const sent = await sendOTP(phone);
@@ -173,13 +178,35 @@ export default function AuthPage() {
                   autoFocus
                 />
 
-                <p className="text-[11px] text-[#B8B8B8] mb-4" style={{ fontFamily: "'DM Mono', monospace" }}>
+                <p className="text-[11px] text-[#B8B8B8] mb-3" style={{ fontFamily: "'DM Mono', monospace" }}>
                   We'll send a 6-digit code to verify your number.
                 </p>
 
+                {/* Legal consent — required by Israeli Privacy Protection Law
+                    before collecting phone numbers / personal data. */}
+                <label className="flex items-start gap-2 mb-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consented}
+                    onChange={(e) => setConsented(e.target.checked)}
+                    className="mt-0.5 accent-[#0A0A0A] w-3.5 h-3.5"
+                  />
+                  <span className="text-[11px] text-[#505050] leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    I agree to the{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline text-[#0A0A0A]">
+                      Terms
+                    </a>{" "}
+                    and{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline text-[#0A0A0A]">
+                      Privacy Policy
+                    </a>
+                    , including SMS delivery via Twilio.
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={loading || phone.length < 10}
+                  disabled={loading || phone.length < 10 || !consented}
                   className="btn-pill btn-pill-solid w-full h-11 gap-2 disabled:opacity-50"
                 >
                   {loading ? "Sending..." : "Send Code"}

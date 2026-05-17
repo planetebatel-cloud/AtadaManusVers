@@ -4,6 +4,7 @@ Main entry point. Mounts all API routers.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,22 +12,51 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+# Sentry init must happen before the app is created so the FastAPI
+# integration can patch route handlers. No-op when SENTRY_DSN is empty.
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        environment=os.getenv("SENTRY_ENV", "production"),
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        # Don't fingerprint individual user IPs into events
+        send_default_pii=False,
+        integrations=[FastApiIntegration(transaction_style="endpoint")],
+    )
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
 from app.config import settings
 from app.db.database import engine, Base, SessionLocal
 from app.api import auth, jobs, users, chat, payments, employer, parser, ai, uploads
+from app.services.rate_limit import limiter
 
 logger = logging.getLogger("atada.main")
 
 # Create all tables on startup (dev convenience — use Alembic in production)
 Base.metadata.create_all(bind=engine)
 
-# Lightweight in-place migrations for SQLite: add columns that exist on the
-# model but not on a pre-existing users table. Idempotent.
+# Lightweight idempotent column adds — covers both SQLite (PRAGMA) and
+# Postgres (information_schema). For real schema changes use alembic; this
+# helper exists so an already-created `users` table picks up new optional
+# columns without dropping data.
 def _ensure_user_columns():
     expected = {"avatar_url": "VARCHAR(500)"}
+    dialect = engine.dialect.name  # "sqlite" | "postgresql"
     with engine.connect() as conn:
-        rows = conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()
-        existing = {r[1] for r in rows}
+        if dialect == "sqlite":
+            rows = conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()
+            existing = {r[1] for r in rows}
+        else:
+            rows = conn.exec_driver_sql(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
+            ).fetchall()
+            existing = {r[0] for r in rows}
         for col, type_ in expected.items():
             if col not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {col} {type_}")
@@ -48,6 +78,12 @@ app = FastAPI(
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
 )
+
+# Rate limiter: shared Limiter is registered on the app so @limiter.limit
+# decorators on routes can read state via `request.app.state.limiter`.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS — credentials must be off when origins is "*" (browser blocks otherwise)
 _allow_credentials = "*" not in settings.CORS_ORIGINS

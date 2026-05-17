@@ -14,16 +14,22 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.domain.models import User, GuestSession, OTPCode
+from app.services.sms import send_sms
 
 
-# ─── OTP (mock SMS) ────────────────────────────────────────────────────────
+# ─── OTP ───────────────────────────────────────────────────────────────────
 
 def generate_otp() -> str:
     return "".join(random.choices(string.digits, k=settings.OTP_LENGTH))
 
 
 def send_otp(phone: str, db: Session) -> str:
-    """Generate OTP and 'send' it. In dev mode, prints to console."""
+    """Generate OTP, store it, and dispatch via the SMS adapter.
+
+    SMS goes through `services.sms.send_sms` which uses Twilio when env
+    vars are configured, otherwise falls back to console print. The OTP is
+    persisted regardless — `/otp/verify` only needs the DB row.
+    """
     code = generate_otp()
     expires = datetime.now(timezone.utc) + timedelta(seconds=settings.OTP_TTL_SECONDS)
 
@@ -31,15 +37,12 @@ def send_otp(phone: str, db: Session) -> str:
     db.add(otp)
     db.commit()
 
-    # ───────────────────────────────────────────────────
-    # MOCK: Print to console instead of sending real SMS
-    # Replace with Twilio/MessageBird in production
-    # ───────────────────────────────────────────────────
-    print(f"\n{'='*50}")
-    print(f"  ATADA OTP for {phone}: {code}")
-    print(f"  Expires in {settings.OTP_TTL_SECONDS}s")
-    print(f"{'='*50}\n")
-
+    body = (
+        f"Atada code: {code}. "
+        f"Valid for {settings.OTP_TTL_SECONDS // 60} min. "
+        f"Do not share."
+    )
+    send_sms(phone, body)
     return code
 
 

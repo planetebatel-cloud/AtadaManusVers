@@ -9,7 +9,7 @@ GET  /api/auth/me            → current user info
 """
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -23,6 +23,7 @@ from app.services.auth import (
 )
 from app.api.deps import get_current_user
 from app.domain.models import User, OTPCode
+from app.services.rate_limit import limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -37,8 +38,17 @@ def create_guest(db: Session = Depends(get_db)):
     return GuestTokenResponse(guest_token=session.token, message_limit=2)
 
 
+# Two-tier rate limit on OTP send:
+#   - 5/minute per source IP — stops a single attacker spamming SMS bills
+#   - 3/hour per phone number — stops a botnet round-robining IPs
+# Demo phones bypass the limit so the public demo never trips it.
 @router.post("/otp/send")
-def request_otp(body: OTPRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def request_otp(request: Request, body: OTPRequest, db: Session = Depends(get_db)):
+    if body.phone not in DEMO_PHONES:
+        # Phone-scoped check (separate from IP-scoped @limiter above)
+        from app.services.rate_limit import check_phone_quota
+        check_phone_quota(body.phone)
     send_otp(body.phone, db)
     return {
         "message": "OTP sent",

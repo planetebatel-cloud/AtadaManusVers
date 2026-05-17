@@ -12,3 +12,12 @@ httpx==0.28.1
 sse-starlette==2.3.6
 stripe==12.2.0
 reportlab==4.4.0
+# Postgres driver (psycopg 3, binary build — no system libpq required).
+# Activated automatically when DATABASE_URL points at postgres://.
+psycopg[binary]==3.2.3
+# Rate limiting middleware (P0.5 #4).
+slowapi==0.1.9
+# Twilio SMS (P0 #1) — graceful no-op if TWILIO_* env vars not set.
+twilio==9.4.1
+# Error tracking (P0.5 #6) — no-op if SENTRY_DSN unset.
+sentry-sdk[fastapi]==2.18.0
