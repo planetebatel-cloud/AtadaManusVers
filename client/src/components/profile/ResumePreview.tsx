@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, memo } from "react";
 import type { ResumeData } from "@/lib/resume-types";
 import { Mail, Phone, Globe, Linkedin, MapPin } from "lucide-react";
 
@@ -6,7 +6,7 @@ interface ResumePreviewProps {
   data: ResumeData;
 }
 
-export const ResumePreview = forwardRef<HTMLDivElement, ResumePreviewProps>(
+const ResumePreviewInner = forwardRef<HTMLDivElement, ResumePreviewProps>(
   ({ data }, ref) => {
     const initials = data.name
       .split(" ")
@@ -253,7 +253,12 @@ export const ResumePreview = forwardRef<HTMLDivElement, ResumePreviewProps>(
   }
 );
 
-ResumePreview.displayName = "ResumePreview";
+ResumePreviewInner.displayName = "ResumePreviewInner";
+
+// Memoize so unrelated re-renders of ProfilePage (e.g. typing in fields that
+// don't change preview output, like Home Address) don't repaint the heavy
+// preview tree. Re-renders only when `data` identity changes.
+export const ResumePreview = memo(ResumePreviewInner);
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useDeferredValue } from "react";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ResumeForm } from "@/components/profile/ResumeForm";
 import { ResumePreview } from "@/components/profile/ResumePreview";
@@ -11,6 +11,11 @@ import { toast } from "sonner";
 
 export default function ProfilePage() {
   const resume = useResumeState();
+  // useDeferredValue makes the preview re-render at lower priority — typing
+  // in the form stays at 60fps even while React is still working on the
+  // previous preview. Pair with React.memo on ResumePreview so the bailout
+  // is real.
+  const deferredData = useDeferredValue(resume.data);
   const previewRef = useRef<HTMLDivElement>(null);
   const mobilePreviewRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -19,22 +24,12 @@ export default function ProfilePage() {
 
   const handleDownload = useCallback(async () => {
     if (downloading) return;
-    // On mobile, the preview only exists while the Preview tab is open. If
-    // we're on Edit, flip to Preview first so the DOM is mounted before
-    // html2canvas reads it.
-    if (isMobile && activeTab !== "preview") {
-      setActiveTab("preview");
-      // give React a frame to mount the preview before snapshotting
-      await new Promise(r => setTimeout(r, 50));
-    }
-    const target = isMobile ? mobilePreviewRef.current : previewRef.current;
-    if (!target) {
-      toast.error("Preview not ready — try again.");
-      return;
-    }
     setDownloading(true);
     try {
-      await generateResumePDF(target);
+      // PDF is built directly from ResumeData via jsPDF text APIs — no DOM
+      // snapshot, no canvas. Works the same on desktop and mobile and the
+      // mobile Preview tab no longer needs to be open beforehand.
+      await generateResumePDF(resume.data);
       toast.success("Resume downloaded!");
     } catch (err) {
       console.error("PDF generation failed:", err);
@@ -43,7 +38,7 @@ export default function ProfilePage() {
     } finally {
       setDownloading(false);
     }
-  }, [downloading, isMobile, activeTab]);
+  }, [downloading, resume.data]);
 
   return (
     <motion.div
@@ -78,7 +73,7 @@ export default function ProfilePage() {
           <div className="w-[58%] overflow-y-auto p-6 flex justify-center">
             <div className="sticky top-0">
               <PreviewScaler>
-                <ResumePreview ref={previewRef} data={resume.data} />
+                <ResumePreview ref={previewRef} data={deferredData} />
               </PreviewScaler>
             </div>
           </div>
@@ -115,7 +110,7 @@ export default function ProfilePage() {
             ) : (
               <div className="flex justify-center">
                 <PreviewScaler>
-                  <ResumePreview ref={mobilePreviewRef} data={resume.data} />
+                  <ResumePreview ref={mobilePreviewRef} data={deferredData} />
                 </PreviewScaler>
               </div>
             )}

@@ -21,16 +21,17 @@ export function ResumeSwipePage() {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
 
   const handleDownload = useCallback(async () => {
-    if (!previewRef.current || downloading) return;
+    if (downloading) return;
     setDownloading(true);
     try {
-      await generateResumePDF(previewRef.current);
+      await generateResumePDF(resume.data);
       toast.success("Resume downloaded!");
-    } catch {
-      toast.error("Failed to generate PDF");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error(`PDF failed: ${String((err as Error)?.message || err).slice(0, 100)}`);
     }
     setDownloading(false);
-  }, [downloading]);
+  }, [downloading, resume.data]);
 
   return (
     <div className="w-full h-full bg-[#F7F7F7] flex flex-col">
