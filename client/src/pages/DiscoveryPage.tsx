@@ -47,25 +47,39 @@ function persistHistory(messages: ChatMessage[]) {
 }
 
 function buildInitialGreeting(
+  authenticated: boolean,
   userName: string | undefined,
   userTitle: string | undefined,
   topJob: Job | undefined,
 ): ChatMessage {
-  const first = userName?.trim().split(/\s+/)[0];
-  const hello = first ? `Hey ${first}` : "Hey";
-  let body: string;
-  if (topJob) {
-    const role = userTitle ? `As a ${userTitle.toLowerCase()}, ` : "";
-    body = `${role}your top match today is ${topJob.company} (${topJob.title}) at ${topJob.matchScore}%. Want me to break down why?`;
-  } else if (userTitle) {
-    body = `Tell me what you're looking for — I'll filter today's openings around your ${userTitle.toLowerCase()} background.`;
+  let content: string;
+  if (!authenticated) {
+    // Anonymous: match-score isn't meaningful without skills/location. Don't
+    // pretend it is — pivot the greeting to a one-click demo invite.
+    content =
+      "Hey there 👋 — I'm Atada AI. Sign in with one click as Worker demo and I'll rank today's jobs against your skills.";
   } else {
-    body = "Tell me what kind of job you're looking for and I'll pull the best matches for you.";
+    const first = userName?.trim().split(/\s+/)[0];
+    const hello = first ? `Hey ${first}` : "Hey there";
+    let body: string;
+    if (topJob) {
+      const rolePrefix = userTitle ? `as a ${userTitle.toLowerCase()}, ` : "";
+      // Capitalize the first word after the comma when there's a role prefix,
+      // otherwise capitalize the body directly. Avoids "Hey. your top..."
+      body = rolePrefix
+        ? `${rolePrefix}your top match today is ${topJob.company} (${topJob.title}) at ${topJob.matchScore}%. Want me to break down why?`
+        : `Your top match today is ${topJob.company} (${topJob.title}) at ${topJob.matchScore}%. Want me to break down why?`;
+    } else if (userTitle) {
+      body = `tell me what you're looking for — I'll filter today's openings around your ${userTitle.toLowerCase()} background.`;
+    } else {
+      body = "tell me what kind of job you're looking for and I'll pull the best matches for you.";
+    }
+    content = `${hello}, ${body}`;
   }
   return {
     id: `m_init_${Date.now()}`,
     role: "ai",
-    content: `${hello}. ${body}`,
+    content,
     timestamp: new Date(),
   };
 }
@@ -134,16 +148,16 @@ export function DiscoveryPage() {
     const only = chatMessages[0];
     if (only.role !== "ai" || !only.id.startsWith("m_init")) return;
     const topJob = [...jobs].sort((a, b) => b.matchScore - a.matchScore)[0];
-    setChatMessages([buildInitialGreeting(user?.name, user?.title, topJob)]);
+    setChatMessages([buildInitialGreeting(authenticated, user?.name, user?.title, topJob)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, jobs, user?.name, user?.title]);
 
   const handleNewChat = useCallback(() => {
     try { localStorage.removeItem(CHAT_HISTORY_KEY); } catch {}
     const topJob = [...jobs].sort((a, b) => b.matchScore - a.matchScore)[0];
-    setChatMessages([buildInitialGreeting(user?.name, user?.title, topJob)]);
+    setChatMessages([buildInitialGreeting(authenticated, user?.name, user?.title, topJob)]);
     toast("Chat cleared", { duration: 1500 });
-  }, [jobs, user?.name, user?.title]);
+  }, [jobs, user?.name, user?.title, authenticated]);
 
   const handleApply = useCallback((job: Job) => {
     setAppliedCount(c => c + 1);
@@ -292,9 +306,10 @@ export function DiscoveryPage() {
       )}
 
       {/* Desktop: three-column layout. Conditionally mounted to avoid
-          rendering both layouts every keystroke. */}
+          rendering both layouts every keystroke. Slim top padding so the
+          content hugs the global header — was leaving ~60px of blank space. */}
       {!isMobile && (
-      <div className="flex flex-1 overflow-hidden gap-4 p-4">
+      <div className="flex flex-1 overflow-hidden gap-4 px-4 pb-4 pt-2">
 
         {/* LEFT: Avatar panel */}
         <motion.div
@@ -426,6 +441,7 @@ export function DiscoveryPage() {
                 onDetails={handleDetails}
                 onSaveToggle={handleSaveToggle}
                 savedJobIds={savedJobIds}
+                showMatchScore={authenticated}
               />
             )}
           </div>
@@ -460,6 +476,7 @@ export function DiscoveryPage() {
                 onDetails={handleDetails}
                 onSaveToggle={handleSaveToggle}
                 savedJobIds={savedJobIds}
+                showMatchScore={authenticated}
               />
             )}
           </div>
@@ -519,6 +536,7 @@ export function DiscoveryPage() {
         onClose={() => setDetailJob(null)}
         onApply={handleApply}
         onSkip={handleSkip}
+        showMatchBreakdown={authenticated}
       />
     </div>
   );

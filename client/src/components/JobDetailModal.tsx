@@ -5,9 +5,8 @@
  * same handlers as the card itself.
  */
 
-import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Briefcase, MapPin, Car, Bus, Check, X, Building2 } from "lucide-react";
+import { Briefcase, MapPin, Car, Bus, Check, X, Building2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +20,9 @@ interface JobDetailModalProps {
   onClose: () => void;
   onApply: (job: Job) => void;
   onSkip: (job: Job) => void;
+  // Hide the match-breakdown section entirely for anon users — without
+  // skills/location on file the percentages would be fabricated.
+  showMatchBreakdown?: boolean;
 }
 
 function formatMin(m: number): string {
@@ -30,41 +32,7 @@ function formatMin(m: number): string {
   return rem ? `${h}h ${rem}m` : `${h}h`;
 }
 
-// Heuristic breakdown used until backend ships a real `match_factors` payload.
-// Computed deterministically from the job's own fields so the user sees
-// something consistent rather than placeholder text.
-function computeFactors(job: Job): { label: string; score: number; note: string }[] {
-  const matchScore = job.matchScore || 50;
-  // Spread the headline score into three plausible buckets.
-  const skills = Math.min(100, Math.max(0, Math.round(matchScore * 0.95 + 5)));
-  const commute = job.reachable
-    ? Math.max(40, 100 - (job.driveMinutes || 0) * 1.2)
-    : 20;
-  const salary = Math.min(100, Math.max(30, matchScore - 5 + (job.salary.includes("/h") ? 10 : 0)));
-  return [
-    {
-      label: "Skills match",
-      score: skills,
-      note: job.tags.length ? `${Math.min(job.tags.length, 4)} of ${job.tags.length} skills overlap` : "based on profile",
-    },
-    {
-      label: "Commute",
-      score: Math.round(commute),
-      note: job.driveMinutes != null
-        ? `${formatMin(job.driveMinutes)} driving${job.transitMinutes != null ? ` · ${formatMin(job.transitMinutes)} transit` : ""}`
-        : (job.travelTime || job.distance || "distance estimated"),
-    },
-    {
-      label: "Salary fit",
-      score: Math.round(salary),
-      note: job.salary || "compensation TBD",
-    },
-  ];
-}
-
-export function JobDetailModal({ job, open, onClose, onApply, onSkip }: JobDetailModalProps) {
-  const factors = useMemo(() => (job ? computeFactors(job) : []), [job]);
-
+export function JobDetailModal({ job, open, onClose, onApply, onSkip, showMatchBreakdown = false }: JobDetailModalProps) {
   if (!job) return null;
 
   const handleApply = () => {
@@ -92,17 +60,19 @@ export function JobDetailModal({ job, open, onClose, onApply, onSkip }: JobDetai
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-          <div
-            className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg"
-            style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-          >
-            <div className="text-[22px] font-bold text-[#0A0A0A] leading-none tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
-              {job.matchScore}
+          {showMatchBreakdown && (
+            <div
+              className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg"
+              style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
+            >
+              <div className="text-[22px] font-bold text-[#0A0A0A] leading-none tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
+                {job.matchScore}
+              </div>
+              <div className="text-[8px] font-medium text-[#808080] uppercase tracking-[0.1em]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                match
+              </div>
             </div>
-            <div className="text-[8px] font-medium text-[#808080] uppercase tracking-[0.1em]" style={{ fontFamily: "'DM Mono', monospace" }}>
-              match
-            </div>
-          </div>
+          )}
           <div className="absolute bottom-3 left-4 right-4">
             <h2
               className="text-[22px] font-bold text-white leading-tight drop-shadow"
@@ -147,37 +117,46 @@ export function JobDetailModal({ job, open, onClose, onApply, onSkip }: JobDetai
             <span className="text-[#B8B8B8]">posted {job.postedAt}</span>
           </div>
 
-          {/* Match breakdown */}
-          <section>
-            <h3 className="label-sm mb-3" style={{ fontFamily: "'DM Mono', monospace" }}>
-              MATCH BREAKDOWN
-            </h3>
-            <div className="flex flex-col gap-3">
-              {factors.map(f => (
-                <div key={f.label}>
+          {/* Match breakdown — only rendered for authenticated users, and even
+              then only as headline score + commute (real data). The earlier
+              heuristic-derived per-factor percentages were fabricated and
+              misleading; removed until the backend ships real match_factors. */}
+          {showMatchBreakdown && (
+            <section>
+              <h3 className="label-sm mb-3" style={{ fontFamily: "'DM Mono', monospace" }}>
+                MATCH OVERVIEW
+              </h3>
+              <div className="flex flex-col gap-3">
+                <div>
                   <div className="flex items-baseline justify-between mb-1">
                     <span className="text-[12px] text-[#0A0A0A] font-medium" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                      {f.label}
+                      Overall match
                     </span>
                     <span className="text-[11px] tabular-nums text-[#505050]" style={{ fontFamily: "'DM Mono', monospace" }}>
-                      {f.score}%
+                      {job.matchScore}%
                     </span>
                   </div>
                   <div className="h-1.5 w-full bg-[#F5F5F5] rounded-full overflow-hidden">
                     <motion.div
                       className="h-full bg-gradient-to-r from-[#0A0A0A] to-[#505050] rounded-full"
                       initial={{ width: 0 }}
-                      animate={{ width: `${f.score}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
+                      animate={{ width: `${job.matchScore}%` }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
                     />
                   </div>
                   <p className="text-[10px] text-[#B8B8B8] mt-1" style={{ fontFamily: "'DM Mono', monospace" }}>
-                    {f.note}
+                    based on skills, commute and salary fit
                   </p>
                 </div>
-              ))}
-            </div>
-          </section>
+                <div className="flex items-start gap-2 text-[11px] text-[#808080] p-2.5 bg-[#FAFAFA] rounded-md border border-[#ECECEC]">
+                  <Info size={11} className="mt-0.5 flex-shrink-0" />
+                  <span style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Per-factor breakdown coming soon.
+                  </span>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Description */}
           {job.description && (

@@ -39,8 +39,14 @@ export function AvatarPanel({ user, matchCount = 6, appliedCount = 0, savedCount
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Prefer the live authenticated user's avatar/name/location over the mockUser
-  // prop. The prop is still passed for non-auth flows so the UI keeps working.
+  // Anonymous visitors get a clear log-in invitation instead of a fake
+  // "Alex M." profile that looks like they're already signed in.
+  if (!authenticated) {
+    return <AnonymousPanel onLogin={() => setLocation("/auth")} matchCount={matchCount} />;
+  }
+
+  // Authenticated: pull display fields from the live user record. The mockUser
+  // prop is only kept as a fallback for missing values.
   const displayName = authUser?.name || user.name;
   const displayInitials = authUser?.name
     ? authUser.name.trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2).toUpperCase() || user.initials
@@ -49,10 +55,6 @@ export function AvatarPanel({ user, matchCount = 6, appliedCount = 0, savedCount
   const avatarUrl = resolveAvatarUrl(authUser?.avatar_url);
 
   const handleAvatarClick = () => {
-    if (!authenticated) {
-      setLocation("/auth");
-      return;
-    }
     fileInputRef.current?.click();
   };
 
@@ -268,6 +270,79 @@ export function AvatarPanel({ user, matchCount = 6, appliedCount = 0, savedCount
           <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0A0A0A] animate-pulse" />
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+// ─── Anonymous-visitor variant ───────────────────────────────────────────────
+//
+// Shown when no user is logged in. Replaces the "Alex M. / Tel Aviv / 30
+// matches" persona that used to render here unconditionally — that was
+// misleading because none of those numbers were real for the visitor.
+// Instead, give them a single clear next step: try the demo.
+
+function AnonymousPanel({ onLogin, matchCount }: { onLogin: () => void; matchCount: number }) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-white">
+      <div className="px-5 pt-5 pb-3 border-b border-[#ECECEC]">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-2 rounded-full bg-[#0A0A0A]" />
+          <span className="label-xs" style={{ fontFamily: "'DM Mono', monospace" }}>ATADA</span>
+        </div>
+        <div className="h-0.5 w-8 bg-gradient-to-r from-[#0A0A0A] to-transparent rounded-full" />
+      </div>
+
+      <div className="flex-1 px-5 py-6 flex flex-col gap-5">
+        {/* Empty avatar circle — no fake initials */}
+        <div className="relative w-14 h-14">
+          <div className="absolute inset-0 bg-[#0A0A0A] rounded-full blur-lg opacity-10" style={{ transform: "scale(1.15)" }} />
+          <div
+            className="relative w-14 h-14 rounded-full bg-[#FAFAFA] border-2 border-dashed border-[#D8D8D8] flex items-center justify-center"
+          >
+            <LogIn size={18} className="text-[#B8B8B8]" />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="h4 text-[#0A0A0A] mb-1">Browsing as guest</h3>
+          <p className="text-[12px] text-[#808080]" style={{ fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+            Sign in with the Worker demo to get AI-ranked matches, save jobs,
+            and track applications.
+          </p>
+        </div>
+
+        <button
+          onClick={onLogin}
+          className="btn-pill btn-pill-solid w-full h-10 gap-2 text-[12px]"
+        >
+          <LogIn size={13} />
+          Try Worker demo
+        </button>
+
+        <div className="rounded-lg border border-[#ECECEC] p-3 bg-[#FAFAFA]">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] uppercase tracking-[0.1em] text-[#B8B8B8]" style={{ fontFamily: "'DM Mono', monospace" }}>
+              Live feed
+            </span>
+            <span className="text-[11px] text-[#0A0A0A] font-medium tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
+              {matchCount} jobs
+            </span>
+          </div>
+          <p className="text-[11px] text-[#808080] leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            Match scores appear once we know your skills.
+          </p>
+        </div>
+      </div>
+
+      <div className="px-5 pb-5 pt-3 border-t border-[#ECECEC]">
+        <div className="flex items-center gap-2 py-2.5 px-3 bg-gradient-to-r from-[#F5F5F5] to-[#FAFAFA] rounded-lg border border-[#ECECEC]">
+          <Zap size={12} className="text-[#505050]" />
+          <span className="text-[11px] text-[#808080]" style={{ fontFamily: "'DM Mono', monospace" }}>
+            AI matching ready
+          </span>
+          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#B8B8B8]" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -182,6 +182,7 @@ export default function SavedPage() {
         onClose={() => setDetailJob(null)}
         onApply={handleApply}
         onSkip={(j) => handleUnsave(j.id)}
+        showMatchBreakdown={authenticated}
       />
     </motion.div>
   );

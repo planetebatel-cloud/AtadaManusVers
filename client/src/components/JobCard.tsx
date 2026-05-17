@@ -17,6 +17,10 @@ interface JobCardProps {
   onSaveToggle?: (job: Job, saved: boolean) => void;
   initialSaved?: boolean;
   isActive?: boolean;
+  // When false, hide the match-score badge + progress bar. Match score is
+  // meaningless for anonymous visitors (no skills/location to match against)
+  // — better to omit than to fake a number.
+  showMatchScore?: boolean;
 }
 
 function formatMin(m: number): string {
@@ -26,7 +30,7 @@ function formatMin(m: number): string {
   return rem ? `${h}h ${rem}m` : `${h}h`;
 }
 
-export function JobCard({ job, onApply, onSkip, onDetails, onSaveToggle, initialSaved = false, isActive = true }: JobCardProps) {
+export function JobCard({ job, onApply, onSkip, onDetails, onSaveToggle, initialSaved = false, isActive = true, showMatchScore = true }: JobCardProps) {
   const [exiting, setExiting] = useState<"apply" | "skip" | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [saved, setSaved] = useState(initialSaved);
@@ -137,15 +141,17 @@ export function JobCard({ job, onApply, onSkip, onDetails, onSaveToggle, initial
               {/* Gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
 
-              {/* Match badge on image */}
-              <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1.5 rounded-lg" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-                <div className="text-[20px] font-bold text-[#0A0A0A] leading-none tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
-                  {job.matchScore}
+              {/* Match badge on image — only when we have a real score */}
+              {showMatchScore && (
+                <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1.5 rounded-lg" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+                  <div className="text-[20px] font-bold text-[#0A0A0A] leading-none tabular-nums" style={{ fontFamily: "'DM Mono', monospace" }}>
+                    {job.matchScore}
+                  </div>
+                  <div className="text-[8px] font-medium text-[#808080] uppercase tracking-[0.1em]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                    match
+                  </div>
                 </div>
-                <div className="text-[8px] font-medium text-[#808080] uppercase tracking-[0.1em]" style={{ fontFamily: "'DM Mono', monospace" }}>
-                  match
-                </div>
-              </div>
+              )}
 
               {/* Job type badge */}
               <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md bg-white/90 backdrop-blur-sm">
@@ -172,12 +178,14 @@ export function JobCard({ job, onApply, onSkip, onDetails, onSaveToggle, initial
             </div>
 
             {/* Match score bar */}
-            <div className="h-1 bg-[#F5F5F5]">
-              <div
-                className="h-full bg-gradient-to-r from-[#0A0A0A] to-[#505050] rounded-r-full"
-                style={{ width: `${job.matchScore}%` }}
-              />
-            </div>
+            {showMatchScore && (
+              <div className="h-1 bg-[#F5F5F5]">
+                <div
+                  className="h-full bg-gradient-to-r from-[#0A0A0A] to-[#505050] rounded-r-full"
+                  style={{ width: `${job.matchScore}%` }}
+                />
+              </div>
+            )}
 
             <div className="p-4">
               {/* Title + Company */}
@@ -296,9 +304,10 @@ interface JobCardStackProps {
   onDetails?: (job: Job) => void;
   onSaveToggle?: (job: Job, saved: boolean) => void;
   savedJobIds?: Set<string>;
+  showMatchScore?: boolean;
 }
 
-export function JobCardStack({ jobs, onApply, onSkip, onDetails, onSaveToggle, savedJobIds }: JobCardStackProps) {
+export function JobCardStack({ jobs, onApply, onSkip, onDetails, onSaveToggle, savedJobIds, showMatchScore = true }: JobCardStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleApply = (job: Job) => {
@@ -347,6 +356,7 @@ export function JobCardStack({ jobs, onApply, onSkip, onDetails, onSaveToggle, s
           onSaveToggle={onSaveToggle}
           initialSaved={savedJobIds?.has(currentJob.id) || false}
           isActive
+          showMatchScore={showMatchScore}
         />
       </div>
 

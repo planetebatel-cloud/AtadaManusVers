@@ -100,26 +100,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
+              className="max-h-[90vh] overflow-y-auto"
             >
-              <div className="text-center mb-5">
-                <div
-                  className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-[#0A0A0A] flex items-center justify-center"
-                  style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}
-                >
-                  <Hand size={20} className="text-white" />
+              {/* Inline hint bar that stays visible even if the modal viewport
+                  is short — replaces the previous heading-on-top layout which
+                  scrolled off-screen on phones in landscape mode. */}
+              <div className="sticky top-0 z-10 mb-3 bg-white/95 backdrop-blur pb-2">
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#0A0A0A] text-white rounded-lg">
+                  <Hand size={14} className="flex-shrink-0" />
+                  <span className="text-[12px] font-medium flex-1" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    Try it: swipe the card, or tap <strong>Apply</strong> / <strong>Skip</strong>
+                  </span>
                 </div>
-                <h2
-                  className="text-[20px] font-bold text-[#0A0A0A] mb-1"
-                  style={{ fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em" }}
-                >
-                  Try it now
-                </h2>
-                <p
-                  className="text-[12px] text-[#808080] leading-relaxed"
-                  style={{ fontFamily: "'DM Sans', sans-serif" }}
-                >
-                  Swipe the card or tap a button to feel the flow.
-                </p>
               </div>
               <JobCard
                 job={SAMPLE_JOB}
