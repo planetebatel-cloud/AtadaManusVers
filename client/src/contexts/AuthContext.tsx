@@ -37,10 +37,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const me = await getMe();
+      // Race the user fetch against a 6 s ceiling. If the backend is
+      // cold-booting we'd rather drop into "unauthed" UI than freeze the
+      // whole app behind a spinner for half a minute. AuthContext will
+      // retry implicitly on the next interaction that needs the user.
+      const timeout = new Promise<UserProfile>((_, reject) =>
+        setTimeout(() => reject(new Error("auth-bootstrap timeout")), 6000),
+      );
+      const me = await Promise.race([getMe(), timeout]);
       setUser(me);
     } catch {
-      clearTokens();
+      // Don't clearTokens() on timeout — token may still be valid, backend
+      // was just slow. Only clear on an explicit 401 from the API layer
+      // (handled by apiFetch's refresh dance).
       setUser(null);
     }
     setLoading(false);

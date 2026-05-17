@@ -11,17 +11,27 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, X, LogOut, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { preload, type RouteKey } from "@/lib/route-preload";
 
-type NavItem = { href: string; label: string; gated?: "worker" | "employer" };
+type NavItem = { href: string; label: string; gated?: "worker" | "employer"; preload?: RouteKey };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Feed" },
-  { href: "/saved", label: "Saved", gated: "worker" },
-  { href: "/applications", label: "Applications", gated: "worker" },
-  { href: "/employer", label: "Employer" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/profile", label: "Profile", gated: "worker" },
+  { href: "/saved", label: "Saved", gated: "worker", preload: "saved" },
+  { href: "/applications", label: "Applications", gated: "worker", preload: "applications" },
+  { href: "/employer", label: "Employer", preload: "employer" },
+  { href: "/pricing", label: "Pricing", preload: "pricing" },
+  { href: "/profile", label: "Profile", gated: "worker", preload: "profile" },
 ];
+
+// Fire-and-forget chunk warm-up. Idempotent — vite caches the module after
+// the first call. Called on hover/focus so by the time the user clicks the
+// link, the JS chunk is already in cache.
+function warm(key: RouteKey | undefined) {
+  if (!key) return;
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  preload[key]().catch(() => {});
+}
 
 function initials(name?: string | null, phone?: string | null) {
   if (name) {
@@ -112,6 +122,9 @@ export default function Header() {
               <Link
                 key={item.href}
                 href={item.href}
+                onMouseEnter={() => warm(item.preload)}
+                onFocus={() => warm(item.preload)}
+                onTouchStart={() => warm(item.preload)}
                 className={`px-3 h-8 inline-flex items-center rounded-full text-[12px] transition-colors ${
                   active
                     ? "bg-[#0A0A0A] text-white"
@@ -193,6 +206,7 @@ export default function Header() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onTouchStart={() => warm(item.preload)}
                   className={`px-4 py-2.5 text-[13px] transition-colors ${
                     active
                       ? "bg-[#F5F5F5] text-[#0A0A0A] font-medium"
