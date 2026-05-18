@@ -614,11 +614,14 @@ def main():
         db.commit()
         print("Demo users ready.\n")
 
-        # Seed jobs
+        # Seed jobs — all owned by demo-employer so the employer dashboard
+        # shows real numbers (47 active jobs) instead of an empty funnel.
         print(f"Seeding {len(JOBS)} realistic jobs...")
+        seeded_jobs: list[Job] = []
         for j in JOBS:
             posted = datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 72))
             job = Job(
+                employer_id="demo-employer",
                 title=j["title"], company=j["company"], location=j["location"],
                 lat=j["lat"], lng=j["lng"],
                 salary_min=j["salary_min"], salary_max=j["salary_max"],
@@ -628,6 +631,7 @@ def main():
                 source="parser", is_active=True, posted_at=posted,
             )
             db.add(job)
+            seeded_jobs.append(job)
         db.commit()
         print(f"  {len(JOBS)} jobs created.\n")
 
@@ -652,6 +656,46 @@ def main():
             db.add(c)
         db.commit()
         print("  20 candidates created.\n")
+
+        # Seed fake worker accounts + applications so the employer dashboard
+        # shows a realistic applicant pipeline (instead of "0 applicants").
+        print("Seeding applicant pipeline...")
+        applicant_users: list[User] = []
+        applicant_seed = [
+            ("applicant-1", "Maya R.",     "+972500000001", ["React", "TypeScript", "CSS"],          "Frontend Developer"),
+            ("applicant-2", "Daniel S.",   "+972500000002", ["Python", "Django", "PostgreSQL"],      "Backend Developer"),
+            ("applicant-3", "Noa L.",      "+972500000003", ["Figma", "UI Design", "Prototyping"],   "Product Designer"),
+            ("applicant-4", "Yossi K.",    "+972500000004", ["Node.js", "AWS", "Docker"],            "Full-Stack Engineer"),
+            ("applicant-5", "Tamar B.",    "+972500000005", ["React Native", "TypeScript", "iOS"],   "Mobile Developer"),
+            ("applicant-6", "Eitan M.",    "+972500000006", ["Go", "Kubernetes", "Linux"],           "DevOps Engineer"),
+            ("applicant-7", "Lior A.",     "+972500000007", ["SQL", "Python", "dbt"],                "Data Analyst"),
+            ("applicant-8", "Roni C.",     "+972500000008", ["Sales", "Hebrew", "English"],          "Account Executive"),
+        ]
+        for uid, name, phone, skills, title in applicant_seed:
+            u = User(
+                id=uid, phone=phone, name=name, email=f"{uid}@example.com",
+                location="Tel Aviv", lat=32.0853, lng=34.7818,
+                skills=skills, title=title,
+                about=f"{name} — {title} with hands-on experience in {', '.join(skills[:2])}.",
+                role="worker", plan="free",
+            )
+            db.merge(u)
+            applicant_users.append(u)
+        db.commit()
+
+        statuses = ["applied", "applied", "applied", "applied", "reviewed", "reviewed", "interview", "offer"]
+        from app.domain.models import Application
+        chosen_jobs = random.sample(seeded_jobs, k=min(12, len(seeded_jobs)))
+        for idx, job in enumerate(chosen_jobs):
+            u = applicant_users[idx % len(applicant_users)]
+            app = Application(
+                user_id=u.id, job_id=job.id,
+                status=statuses[idx % len(statuses)],
+                match_score=round(random.uniform(55, 95), 1),
+            )
+            db.add(app)
+        db.commit()
+        print(f"  {len(applicant_users)} applicant users + {len(chosen_jobs)} applications created.\n")
 
         print("Done! Realistic data seeded.")
         print("Demo worker: +972501234567")

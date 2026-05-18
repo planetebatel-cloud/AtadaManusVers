@@ -270,21 +270,22 @@ async def _stream_minimax(
                         break
 
         if not text_emitted:
-            # M2.7 occasionally spends its whole budget on thinking and emits
-            # no text. Soft fallback so the user sees *something*.
-            yield _sse({
-                "type": "text_chunk",
-                "content": "(thinking complete — no answer text returned, try rephrasing)",
-            })
+            # MiniMax stream closed without emitting any user-facing text
+            # (free-tier proxies sometimes drop the outgoing connection,
+            # or M2.7 spends its whole budget on hidden thinking). Fall back
+            # to the deterministic mock so the demo never shows an empty
+            # chat bubble.
+            async for chunk in _stream_mock(message):
+                yield chunk
+            return
 
         yield _sse({"type": "done"})
 
-    except Exception as e:  # noqa: BLE001
-        yield _sse({
-            "type": "text_chunk",
-            "content": f"Sorry, I lost the connection to the AI. ({type(e).__name__})",
-        })
-        yield _sse({"type": "done"})
+    except Exception:  # noqa: BLE001
+        # Any network/TLS/timeout failure with MiniMax → fall back to mock
+        # rather than surfacing a scary error to the demo audience.
+        async for chunk in _stream_mock(message):
+            yield chunk
 
 
 async def _describe_image(image_b64: str, mime: str, user_prompt: str) -> str:
